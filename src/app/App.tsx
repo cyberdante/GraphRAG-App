@@ -3,7 +3,7 @@ import { ThemeProvider, createTheme, CssBaseline, Box } from '@mui/material';
 import { Navbar } from './components/Navbar';
 import { QueryInput } from './components/QueryInput';
 import { StreamingResponse } from './components/StreamingResponse';
-import { GraphVisualization } from './components/GraphVisualization';
+import { D3GraphVisualization } from './components/D3GraphVisualization';
 import { QueryHistory } from './components/QueryHistory';
 import { MockStreamingAPI } from '@/utils/mockApi';
 import { 
@@ -332,7 +332,7 @@ function AppContent() {
                 minHeight: { xs: '50vh', lg: 'auto' }
               }}
             >
-              <GraphVisualization data={graphData} darkMode={darkMode} />
+              <D3GraphVisualization data={graphData} darkMode={darkMode} />
             </Box>
           </Box>
         </Box>
@@ -350,8 +350,9 @@ function AppContent() {
   );
 }
 
-function App(_props: any) {
-  // Explicitly ignore all props including Figma data attributes
+function App({ ...allProps }: any) {
+  // Explicitly destructure and ignore all props including Figma's data attributes
+  // This prevents React warnings about unsupported props
   return <AppContent />;
 }
 
