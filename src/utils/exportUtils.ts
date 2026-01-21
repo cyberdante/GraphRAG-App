@@ -137,6 +137,29 @@ export const exportGraphToCSV = (graphData: GraphData, conversationId: string) =
   document.body.removeChild(link);
 };
 
+export const exportGraphToJsonLD = (graphData: GraphData, conversationId: string) => {
+  if (!graphData.jsonLD) {
+    alert('No JSON-LD data available');
+    return;
+  }
+
+  // Create formatted JSON-LD
+  const jsonLDString = JSON.stringify(graphData.jsonLD, null, 2);
+  
+  // Create blob and download
+  const blob = new Blob([jsonLDString], { type: 'application/ld+json;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `graph-jsonld-${conversationId}-${Date.now()}.json`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
 export const exportGraphToPDF = (graphData: GraphData, conversationId: string) => {
   const doc = new jsPDF();
   

@@ -19,7 +19,8 @@ import {
   Add as AddIcon,
   FileDownload as DownloadIcon,
   PictureAsPdf as PdfIcon,
-  TableChart as CsvIcon
+  TableChart as CsvIcon,
+  Code as JsonIcon
 } from '@mui/icons-material';
 
 interface NavbarProps {
@@ -31,6 +32,7 @@ interface NavbarProps {
   onExportCSV?: () => void;
   onExportGraphPDF?: () => void;
   onExportGraphCSV?: () => void;
+  onExportGraphJsonLD?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -41,7 +43,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onExportPDF,
   onExportCSV,
   onExportGraphPDF,
-  onExportGraphCSV
+  onExportGraphCSV,
+  onExportGraphJsonLD
 }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const exportMenuOpen = Boolean(anchorEl);
@@ -184,6 +187,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               <CsvIcon />
             </ListItemIcon>
             <ListItemText>Export Graph CSV</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => handleExportAction(onExportGraphJsonLD || (() => {}))}
+          >
+            <ListItemIcon>
+              <JsonIcon />
+            </ListItemIcon>
+            <ListItemText>Export Graph JSON-LD</ListItemText>
           </MenuItem>
         </Menu>
 

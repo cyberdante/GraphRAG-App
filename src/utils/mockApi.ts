@@ -1,5 +1,6 @@
 import { StreamEvent, QueryRequest } from '@/types';
 import { generateMockResponse, supplyChainGraphData } from './mockData';
+import { graphToJsonLD } from './jsonLdConverter';
 
 export class MockStreamingAPI {
   async *streamQuery(request: QueryRequest): AsyncGenerator<StreamEvent> {
@@ -21,11 +22,16 @@ export class MockStreamingAPI {
       link => partialNodeIds.has(link.source as string) && partialNodeIds.has(link.target as string)
     );
 
+    const partialGraphData = {
+      nodes: partialNodes,
+      links: partialLinks
+    };
+
     yield {
       type: 'graph',
       data: {
-        nodes: partialNodes,
-        links: partialLinks
+        ...partialGraphData,
+        jsonLD: graphToJsonLD(partialGraphData)
       }
     };
 
@@ -42,7 +48,10 @@ export class MockStreamingAPI {
     // Send full graph
     yield {
       type: 'graph',
-      data: supplyChainGraphData
+      data: {
+        ...supplyChainGraphData,
+        jsonLD: graphToJsonLD(supplyChainGraphData)
+      }
     };
 
     await this.delay(400);

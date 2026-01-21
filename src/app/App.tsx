@@ -10,7 +10,8 @@ import {
   exportConversationToPDF, 
   exportConversationToCSV, 
   exportGraphToPDF, 
-  exportGraphToCSV 
+  exportGraphToCSV,
+  exportGraphToJsonLD 
 } from '@/utils/exportUtils';
 import { Message, GraphData, QueryHistoryItem } from '@/types';
 
@@ -250,6 +251,14 @@ function AppContent() {
     exportGraphToCSV(graphData, currentConversationId);
   }, [graphData, currentConversationId]);
 
+  const handleExportGraphJsonLD = useCallback(() => {
+    if (graphData.nodes.length === 0) {
+      alert('No graph data to export');
+      return;
+    }
+    exportGraphToJsonLD(graphData, currentConversationId);
+  }, [graphData, currentConversationId]);
+
   const theme = createTheme({
     palette: {
       mode: darkMode ? 'dark' : 'light',
@@ -276,6 +285,7 @@ function AppContent() {
           onExportCSV={handleExportCSV}
           onExportGraphPDF={handleExportGraphPDF}
           onExportGraphCSV={handleExportGraphCSV}
+          onExportGraphJsonLD={handleExportGraphJsonLD}
         />
 
         {/* Main Content */}
@@ -340,9 +350,8 @@ function AppContent() {
   );
 }
 
-function App(props: any) {
-  // Filter out Figma-specific props to prevent warnings
-  const {} = props;
+function App(_props: any) {
+  // Explicitly ignore all props including Figma data attributes
   return <AppContent />;
 }
 

@@ -47,6 +47,7 @@ export interface GraphEdge {
 export interface GraphData {
   nodes: GraphNode[];
   links: GraphEdge[];
+  jsonLD?: any; // JSON-LD representation
 }
 
 export interface StreamEvent {
