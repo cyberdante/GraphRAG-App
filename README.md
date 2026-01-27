@@ -1,172 +1,184 @@
-# GraphRAG Application - White Label UI
+# White-Label GraphRAG Application
 
-A production-ready white-label GraphRAG (Graph Retrieval-Augmented Generation) application built with React, Material UI, and TypeScript. This UI demonstrates a complete implementation of a Graph-based RAG system with real-time streaming responses and interactive 3D knowledge graph visualization.
+A professional white-label GraphRAG application that uses natural language queries to communicate with a FastAPI Python backend, retrieves information from AWS Bedrock, and represents data as triples using Neptune.
 
 ## Features
 
-### 🎯 Core Functionality
-- **Natural Language Query Interface** - Ask questions in plain English about supply chain data
-- **Streaming HTTP Responses** - Real-time SSE (Server-Sent Events) simulation with typing effect
-- **Interactive 3D Graph Visualization** - Explore knowledge graph relationships with Three.js/Force Graph
-- **Query History Sidebar** - Track and replay previous queries
-- **Multi-Input Support** - Upload files, add URLs, or specify entity IDs
+### Core Functionality
+- **Natural Language Query Interface**: Clean Material Design UI for natural language input
+- **Multiple Input Types**: Support for text queries, file uploads, URLs, and entity IDs
+- **Streaming HTTP Communication**: Real-time SSE (Server-Sent Events) streaming responses
+- **Interactive 3D Graph Visualization**: Custom D3.js-based knowledge graph visualization
+- **Persistent Conversation History**: localStorage-based conversation management
+- **Export Capabilities**: 
+  - Conversations: PDF, CSV formats
+  - Graph data: PDF, CSV, JSON-LD (semantic web compatible)
 
-### 🎨 UI/UX Features
-- **Dark/Light Theme Toggle** - Fully customizable theming system
-- **Responsive Layout** - Works on desktop, tablet, and mobile
-- **Clean Material Design** - Professional, sleek interface using Material UI
-- **White-Label Ready** - Easy to rebrand with custom colors and logos
+### UI Components
+- **Top Navbar**: Logo placeholder, hamburger menu, theme toggle, export options
+- **Query Input**: Multi-modal input supporting text, files, URLs, and entity IDs
+- **Streaming Response Display**: Real-time typing effects with citations
+- **Interactive Graph Visualization**: 
+  - D3.js force-directed layout
+  - Zoom, pan, drag interactions
+  - Label toggle
+  - Node selection with info panel
+  - Dark/light theme support
+- **Query History Sidebar**: Conversation history with load functionality
 
-### 📊 Data Visualization
-- **3D Force-Directed Graph** - Interactive node-edge visualization
-- **Real-time Graph Updates** - Graph updates as streaming responses arrive
-- **Node Details on Click** - Inspect entities and relationships
-- **Zoom/Pan Controls** - Full navigation controls
+### Theme Support
+- Light/Dark mode toggle
+- Material Design components
+- Responsive layout (mobile/desktop)
 
-### 💬 Conversation Features
-- **Streaming Text Display** - Typing effect for natural conversation flow
-- **Citations & Sources** - Each response includes source attribution with confidence scores
-- **Status Indicators** - Real-time feedback on query processing phases
-- **Message History** - Full conversation context maintained
+## Technology Stack
 
-## Tech Stack
+- **Frontend Framework**: React 18.3.1 with TypeScript
+- **UI Library**: Material-UI (@mui/material 7.3.5)
+- **Graph Visualization**: D3.js 7.9.0 (custom implementation)
+- **Build Tool**: Vite 6.3.5
+- **Styling**: Tailwind CSS 4.1.12 + Material-UI theme system
+- **State Management**: React hooks + localStorage
+- **Export Libraries**: jsPDF, jspdf-autotable
 
-- **React 18.3** - Modern React with hooks
-- **Material UI v7** - Complete component library
-- **TypeScript** - Full type safety
-- **React Force Graph 3D** - 3D graph visualization
-- **Three.js** - WebGL rendering
-- **Date-fns** - Date formatting
-- **Vite** - Fast build tool
+## Project Structure
 
-## Architecture
-
-### Event Flow (SSE Streaming)
 ```
-UI → API Request
-     ↓
-API → Status Event: "Querying knowledge graph..."
-     ↓
-API → Graph Event: Partial graph data (nodes/edges)
-     ↓
-API → Status Event: "Analyzing relationships..."
-     ↓
-API → Graph Event: Complete graph data
-     ↓
-API → Delta Events: Streaming response text (word by word)
-     ↓
-API → Done Event: Completion with usage stats & citations
-```
-
-### Message Format (OpenAI-Compatible)
-
-**Request:**
-```json
-{
-  "conversation_id": "conv_123",
-  "messages": [
-    { "role": "user", "content": "Which suppliers are at risk?" }
-  ],
-  "input": {
-    "text": "Which suppliers are at risk?",
-    "files": [],
-    "urls": [],
-    "entityIds": []
-  },
-  "options": {
-    "stream": true,
-    "response_format": "markdown"
-  },
-  "retrieval": {
-    "mode": "graph_rag",
-    "graph": {
-      "max_hops": 2,
-      "max_nodes": 150,
-      "entity_types": ["Supplier", "Shipment", "RiskSignal"]
-    }
-  }
-}
+src/
+├── app/
+│   ├── App.tsx                      # Main application component
+│   └── components/
+│       ├── D3GraphVisualization.tsx # Custom D3.js graph visualization
+│       ├── Navbar.tsx               # Top navigation bar
+│       ├── QueryHistory.tsx         # Conversation history sidebar
+│       ├── QueryInput.tsx           # Multi-modal query input
+│       └── StreamingResponse.tsx    # Streaming chat interface
+├── utils/
+│   ├── mockApi.ts                   # Mock streaming API with SSE
+│   ├── mockData.ts                  # Supply chain demo data
+│   ├── exportUtils.ts               # PDF/CSV/JSON-LD export functions
+│   └── jsonLdConverter.ts           # JSON-LD semantic web conversion
+├── types/
+│   └── index.ts                     # TypeScript type definitions
+└── styles/
+    ├── index.css                    # Global styles
+    ├── tailwind.css                 # Tailwind imports
+    └── theme.css                    # Custom theme tokens
 ```
 
-**Response Events:**
-```typescript
-// Status update
-{ type: 'status', data: { phase: 'retrieval', message: '...' } }
+## Recent Updates
 
-// Graph data
-{ type: 'graph', data: { nodes: [...], links: [...] } }
+### January 27, 2026
 
-// Streaming text
-{ type: 'delta', data: { text: '...', citations: [...] } }
+#### Custom D3.js Graph Visualization
+- Replaced `react-force-graph-3d` with fully custom D3.js implementation
+- Features:
+  - Properly sized nodes (15px radius) for better visibility
+  - Visible relationship links with directional arrows
+  - Working label toggle functionality
+  - Optimized force simulation parameters
+  - Interactive drag, zoom, and pan
+  - Dark/light theme support
+  - Node selection with info panel
+  - Auto-fit zoom on initial load
 
-// Completion
-{ type: 'done', data: { usage: {...}, citations: [...] } }
-```
+#### Figma Data Attribute Fix
+- Resolved React warnings about unsupported props on Material UI components
+- Implemented proper prop consumption at App component boundary
+- Prevents Figma's `data-fg-*` attributes from propagating to Material UI
+
+#### Export Functionality
+- Complete conversation export (PDF, CSV)
+- Graph data export (PDF, CSV, JSON-LD)
+- JSON-LD export with proper semantic web formatting for compatibility with other tools
+
+#### Persistence
+- localStorage-based conversation management
+- Query history tracking
+- Auto-save on conversation updates
+- Conversation switching with state preservation
 
 ## Mock Data
 
-The application includes comprehensive supply chain mock data:
-- **3 Suppliers**: ITAMCO, TechParts Inc, GlobalMfg
-- **Risk Factors**: Delivery delays, quality issues, price volatility
-- **Shipments**: Active tracking with statuses
-- **Warehouses**: Multi-location inventory
-- **Risk Signals**: Predictive alerts
+The application currently uses supply chain data for demonstration:
+- **Entities**: Suppliers, Shipments, Risk Signals, Products, Locations
+- **Relationships**: ships_to, located_in, supplies, has_risk, etc.
+- **Sample Queries**: 
+  - "Show me all suppliers in China"
+  - "What are the risk signals for Acme Corporation?"
+  - "Show shipment routes from Vietnam"
 
-## Customization
+## Development
 
-### Theming
-Modify `/src/app/App.tsx` to customize colors:
-```typescript
-const theme = createTheme({
-  palette: {
-    primary: { main: '#YOUR_COLOR' },
-    secondary: { main: '#YOUR_COLOR' },
-  }
-});
+### Installation
+
+```bash
+npm install
+# or
+pnpm install
 ```
 
-### Logo
-Replace logo placeholder in `/src/app/components/Navbar.tsx`:
-```typescript
-// Replace the Box with bgcolor with your logo image
-<img src="/your-logo.png" alt="Logo" />
+### Build
+
+```bash
+npm run build
+# or
+pnpm run build
 ```
 
-### Mock Backend
-Replace mock API in `/src/utils/mockApi.ts` with real backend:
-```typescript
-// Replace MockStreamingAPI with actual FastAPI endpoint
-const response = await fetch('https://your-api.com/v1/kb/chat', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(request)
-});
-```
+### Key Dependencies
+
+- React 18.3.1
+- Material-UI 7.3.5
+- D3.js 7.9.0
+- Vite 6.3.5
+- TypeScript (via @vitejs/plugin-react)
+- Tailwind CSS 4.1.12
+
+## Architecture Notes
+
+### Streaming API
+The mock API (`utils/mockApi.ts`) demonstrates the expected backend interface:
+- SSE-based streaming responses
+- Event types: `status`, `graph`, `delta`, `done`, `error`
+- Graph data returned as JSON with nodes and links
+
+### Graph Visualization
+The D3.js implementation uses:
+- Force-directed layout with collision detection
+- SVG rendering for performance
+- Zoom behavior with programmatic controls
+- Dynamic theme switching
+- Efficient tick updates
+
+### Export System
+- PDF exports use jsPDF with autotable plugin
+- CSV exports use simple text/csv generation
+- JSON-LD exports follow semantic web standards with proper @context
 
 ## Future Enhancements
 
-- [ ] Real FastAPI backend integration
-- [ ] AWS Bedrock LLM integration  
-- [ ] Neptune graph database connection
-- [ ] Multi-tenancy support
-- [ ] User authentication
-- [ ] Export conversation history
-- [ ] Advanced graph filters
-- [ ] Custom entity type visualization
-- [ ] WebSocket support for bidirectional communication
+- [ ] Backend integration with FastAPI
+- [ ] AWS Bedrock connection
+- [ ] Neptune database integration
+- [ ] Real authentication/authorization
+- [ ] Advanced graph filtering and search
+- [ ] Graph analytics and metrics
+- [ ] Custom branding/white-labeling interface
+- [ ] Multi-language support
 
-## Development Notes
+## White-Labeling
 
-This is a **frontend prototype** demonstrating the UI/UX patterns for a GraphRAG application. For production:
-
-1. Replace mock API with real backend
-2. Implement proper authentication
-3. Add error boundaries and fallbacks
-4. Implement rate limiting
-5. Add analytics/monitoring
-6. Optimize graph rendering for large datasets
-7. Add comprehensive testing
+This application is designed to be easily white-labeled:
+- Material-UI theming system for colors and typography
+- Logo placeholder in navbar (easily replaceable)
+- Configurable theme tokens in `src/styles/theme.css`
+- No hardcoded branding elements
 
 ## License
 
-This is a demonstration project. Customize and use as needed for your GraphRAG implementation.
+Private - All rights reserved
+
+## Contact
+
+For questions or support, please contact the repository owner.
