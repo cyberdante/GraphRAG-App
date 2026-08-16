@@ -152,3 +152,47 @@ class TestRouting:
 
     def test_rejects_a_request_missing_required_fields(self, client: TestClient) -> None:
         assert client.post("/api/query", json={"conversation_id": "c"}).status_code == 422
+
+
+class TestGraphFollowsTheQuestion:
+    """The graph frame is projected from ranked evidence, so it should move.
+
+    Before ranking existed the same subgraph came back whatever was asked,
+    because the store's return order was the only order there was.
+    """
+
+    def labels(self, client: TestClient, body: dict, question: str) -> set[str]:
+        body = {**body, "input": {"text": question}}
+        body["retrieval"] = {**body["retrieval"], "top_k": 6}
+        body["retrieval"]["graph"] = {**body["retrieval"]["graph"], "max_nodes": 6}
+        graphs = [data for event, data in stream(client, body) if event == "graph"]
+        return {node["label"] for node in graphs[-1]["nodes"]}
+
+    def test_different_questions_produce_different_graphs(
+        self, client: TestClient, query_body: dict
+    ) -> None:
+        risk = self.labels(client, query_body, "which suppliers are at risk?")
+        logistics = self.labels(client, query_body, "where are the shipments and warehouses?")
+
+        assert risk != logistics
+
+    def test_a_question_about_shipments_surfaces_shipments(
+        self, client: TestClient, query_body: dict
+    ) -> None:
+        labels = self.labels(client, query_body, "where are the shipments and warehouses?")
+        assert any(label.startswith("Shipment") for label in labels)
+        assert any(label.startswith("Warehouse") for label in labels)
+
+    def test_a_question_about_risk_surfaces_risks(
+        self, client: TestClient, query_body: dict
+    ) -> None:
+        labels = self.labels(client, query_body, "which suppliers are at risk?")
+        assert {"Delivery Delay", "Quality Issues"} & labels
+
+    def test_plural_questions_reach_singular_entity_types(
+        self, client: TestClient, query_body: dict
+    ) -> None:
+        # "shipments" has to find nodes typed Shipment, or relevancy is zero
+        # everywhere and ranking degrades to the store's return order.
+        labels = self.labels(client, query_body, "shipments")
+        assert any(label.startswith("Shipment") for label in labels)

@@ -32,9 +32,10 @@ class FixtureGraphStore:
             if self._in_scope(nodes, link, request)
         ]
 
-        # A store returns what it found; ranking and truncation belong to the
-        # pipeline, which can weigh candidates from several passes together.
-        return candidates[: max(request.max_nodes, 1)]
+        # A store returns what it found, up to its search budget. Ranking and
+        # the frame cap belong to the pipeline, which can weigh candidates from
+        # several passes together.
+        return candidates[: max(request.max_candidates, 1)]
 
     def _in_scope(
         self,
@@ -60,6 +61,8 @@ class FixtureGraphStore:
             object=link.target,
             subject_type=nodes[link.source].type if link.source in nodes else None,
             object_type=nodes[link.target].type if link.target in nodes else None,
+            subject_label=subject,
+            object_label=target,
             confidence=0.9,
             source="Supply chain graph",
         )

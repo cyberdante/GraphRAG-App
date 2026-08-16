@@ -64,9 +64,17 @@ class TestFixtureStore:
             assert candidate.subject and candidate.predicate and candidate.object
 
     @pytest.mark.anyio
-    async def test_respects_the_node_cap(self, store: FixtureGraphStore) -> None:
-        candidates = await store.retrieve(RetrievalRequest(query="x", max_nodes=3))
+    async def test_respects_its_search_budget(self, store: FixtureGraphStore) -> None:
+        candidates = await store.retrieve(RetrievalRequest(query="x", max_candidates=3))
         assert len(candidates) <= 3
+
+    @pytest.mark.anyio
+    async def test_the_frame_cap_does_not_shrink_the_search(self, store: FixtureGraphStore) -> None:
+        # The bug this guards: truncating by max_nodes meant ranking only ever
+        # reordered an arbitrary prefix, so a question about products was
+        # answered with whichever statements happened to come back first.
+        candidates = await store.retrieve(RetrievalRequest(query="x", max_nodes=2))
+        assert len(candidates) > 2
 
     @pytest.mark.anyio
     async def test_filters_by_entity_type_when_asked(self, store: FixtureGraphStore) -> None:

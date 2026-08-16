@@ -11,7 +11,7 @@ import logging
 from collections.abc import AsyncGenerator
 
 from .config import Settings
-from .fixtures import SUPPLY_CHAIN_GRAPH, answer_for, subgraph
+from .fixtures import answer_for
 from .models import (
     DeltaPayload,
     DonePayload,
@@ -21,10 +21,19 @@ from .models import (
     UsagePayload,
 )
 from .ontology import graph_to_jsonld
+from .retrieval import scoring
+from .retrieval.graph_frame import graph_from_candidates
 from .retrieval.models import RetrievalRequest
 from .retrieval.registry import BackendRegistry
 
 logger = logging.getLogger(__name__)
+
+
+def _graph_payload(graph: object) -> dict:
+    """A graph frame carries its JSON-LD so an export needs no second request."""
+    payload = graph.model_dump(exclude_none=True)  # type: ignore[attr-defined]
+    payload["jsonLD"] = graph_to_jsonld(graph)  # type: ignore[arg-type]
+    return payload
 
 
 def frame(event: str, data: object) -> str:
@@ -61,41 +70,58 @@ async def stream_answer(
                 message=f"Querying knowledge graph via {store.name}...",
             ),
         )
+        await asyncio.sleep(settings.fixture_token_delay * 4)
+
+        keywords = scoring.extract_keywords(query_text)
+        top_k = min(request.retrieval.top_k or settings.top_k_default, settings.top_k_max)
 
         candidates = await store.retrieve(
             RetrievalRequest(
                 query=query_text,
+                keywords=keywords,
+                max_candidates=settings.max_candidates,
                 max_nodes=max_nodes,
                 max_hops=request.retrieval.graph.max_hops,
                 entity_types=request.retrieval.graph.entity_types,
-                top_k=min(
-                    request.retrieval.top_k or settings.top_k_default,
-                    settings.top_k_max,
-                ),
+                top_k=top_k,
             )
         )
-        logger.debug("retrieved %d candidates from %s", len(candidates), store.name)
-        await asyncio.sleep(settings.fixture_token_delay * 8)
 
-        # A first pass at the subgraph, so the visualization has something to
-        # draw while the rest of the retrieval runs.
-        partial = subgraph(min(8, max_nodes))
+        # A first frame from what came back unranked, so the visualization has
+        # something to draw while ranking runs.
         yield frame(
-            "graph", {**partial.model_dump(exclude_none=True), "jsonLD": graph_to_jsonld(partial)}
+            "graph",
+            _graph_payload(graph_from_candidates(candidates, max_nodes=min(8, max_nodes))),
         )
         await asyncio.sleep(settings.fixture_token_delay * 6)
 
         yield frame(
             "status",
-            StatusPayload(phase="processing", message="Analyzing relationships..."),
+            StatusPayload(
+                phase="processing",
+                message=f"Ranking {len(candidates)} candidates...",
+            ),
         )
 
-        full = (
-            subgraph(max_nodes) if max_nodes < len(SUPPLY_CHAIN_GRAPH.nodes) else SUPPLY_CHAIN_GRAPH
+        scoring.score_candidates(
+            candidates,
+            keywords,
+            weight_relevancy=settings.weight_relevancy,
+            weight_confidence=settings.weight_confidence,
+            weight_recency=settings.weight_recency,
+            recency_half_life_days=settings.recency_half_life_days,
         )
-        yield frame(
-            "graph", {**full.model_dump(exclude_none=True), "jsonLD": graph_to_jsonld(full)}
+        top = scoring.rerank(
+            candidates,
+            top_k=top_k,
+            same_subject_penalty=settings.same_subject_penalty,
+            same_source_penalty=settings.same_source_penalty,
         )
+        logger.debug("ranked %d candidates, kept %d", len(candidates), len(top))
+
+        # The graph the user sees is the evidence the answer stands on, not a
+        # separate query that could disagree with it.
+        yield frame("graph", _graph_payload(graph_from_candidates(top, max_nodes=max_nodes)))
         await asyncio.sleep(settings.fixture_token_delay * 4)
 
         yield frame(

@@ -10,6 +10,7 @@ from the answer's own evidence rather than fetched separately (item 57).
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Literal
 
 from ..models import Citation
@@ -37,11 +38,29 @@ class Candidate:
     #: Human-readable type of the subject, used to colour the graph frame.
     subject_type: str | None = None
     object_type: str | None = None
+    #: Display labels, so the graph frame can be drawn without a second lookup.
+    subject_label: str | None = None
+    object_label: str | None = None
+
+    #: When the underlying fact was extracted, when the store knows.
+    extracted_at: datetime | None = None
 
     #: Lexical overlap with the question, set during scoring.
     relevancy: float = 0.0
     #: Final rank score, set during scoring.
     score: float = 0.0
+
+    @property
+    def searchable(self) -> str:
+        """Everything a question could plausibly match against.
+
+        The prose alone is not enough: a question about "risk" should reach a
+        statement whose text names two entities but whose *types* are Supplier
+        and Risk. Matching the types and the predicate too is what connects the
+        vocabulary of the question to the vocabulary of the graph.
+        """
+        parts = [self.text, self.predicate, self.subject_type, self.object_type]
+        return " ".join(part for part in parts if part)
 
     def key(self) -> str:
         """Dedupe key across retrieval passes."""
@@ -67,6 +86,13 @@ class RetrievalRequest:
 
     query: str
     keywords: list[str] = field(default_factory=list)
+
+    #: How much evidence to gather. Distinct from max_nodes on purpose: that
+    #: caps the picture, this caps the search. Conflating them means the store
+    #: truncates before ranking runs, so ranking can only reorder whatever
+    #: arbitrary prefix came back — which silently defeats the whole pipeline.
+    max_candidates: int = 200
+    #: Caps the graph frame drawn from the ranked result.
     max_nodes: int = 150
     max_hops: int = 2
     entity_types: list[str] = field(default_factory=list)
