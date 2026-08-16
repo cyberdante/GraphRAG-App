@@ -167,6 +167,27 @@ async def test_declares_an_identity_a_request_can_name(store: GraphStore):
     assert store.description
 
 
+async def _dataset_scale() -> int:
+    """How much generated volume the store holds, as the seeder recorded it.
+
+    Exact equality against the fixture graph only means anything when the store
+    holds the fixture graph and nothing else. Rather than let that test fail
+    confusingly the moment someone seeds volume, ask the store what it has.
+    """
+    from app.retrieval.cypher_store import build_driver
+
+    driver = build_driver(BOLT_URI, BOLT_USER, BOLT_PASSWORD)
+    try:
+        async with driver.session() as session:
+            result = await session.run(
+                "MATCH (d:RagstoneDataset {id: 'dataset'}) RETURN d.scale AS scale"
+            )
+            record = await result.single()
+            return int(record["scale"]) if record and record["scale"] is not None else 0
+    finally:
+        await driver.close()
+
+
 @pytest.mark.anyio
 @cypher_available
 async def test_both_backends_describe_the_same_graph_identically():
@@ -184,6 +205,13 @@ async def test_both_backends_describe_the_same_graph_identically():
     source differently from the fixture store.
     """
     from app.retrieval.cypher_store import CypherGraphStore, build_driver
+
+    scale = await _dataset_scale()
+    if scale:
+        pytest.skip(
+            f"Store holds generated volume (scale {scale}); equivalence is asserted "
+            "against the sample alone. Re-seed with: python scripts/seed_neo4j.py --clear"
+        )
 
     request = RetrievalRequest(query="supplier risk")
     from_fixtures = await FixtureGraphStore().retrieve(request)

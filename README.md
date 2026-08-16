@@ -128,6 +128,19 @@ docker compose up -d neo4j                # openCypher over Bolt, on 7687
 pnpm --filter @ragstone/api seed          # idempotent
 ```
 
+The sample graph is fifteen nodes, which is too small to tell a working ranking
+from a broken one. To seed volume alongside it:
+
+```bash
+cd apps/api
+python scripts/seed_neo4j.py --scale 500   # ~3.4k nodes, ~5.9k relationships
+python scripts/seed_neo4j.py --clear       # drop generated data, keep the sample
+```
+
+Generated statements carry their own confidence and extraction date, so the
+recency and confidence weights have something to discriminate on — with the
+sample alone they are renormalised away. Same scale and seed, same graph.
+
 Then copy `apps/api/.env.example` to `.env.local`, uncomment the `NEO4J_*`
 block, and install the driver with `pip install -e ".[graph]"` inside
 `apps/api`. The backend appears in the picker once it is configured; a store
