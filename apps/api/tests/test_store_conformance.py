@@ -162,6 +162,54 @@ async def test_candidates_dedupe_by_key(store: GraphStore):
 
 
 @pytest.mark.anyio
+async def test_the_question_selects_the_evidence(store: GraphStore):
+    """The property the whole pipeline rests on, and the one that was missing.
+
+    A store that ignores the question answers every question with the same
+    rows. Ranking downstream can then only reorder an arbitrary prefix — it
+    cannot recover evidence the store never returned. That was invisible while
+    the sample graph fitted inside the search budget, and wrong the moment it
+    did not.
+
+    Asserted by difference rather than by content, because it holds whatever
+    the store contains: two questions about different things cannot both be
+    answered by the same rows.
+    """
+    risks = await store.retrieve(RetrievalRequest(query="risk", max_candidates=20))
+    deliveries = await store.retrieve(
+        RetrievalRequest(query="warehouse delivered location", max_candidates=20)
+    )
+
+    assert risks, f"{store.name} found nothing for a question the graph answers"
+    assert deliveries, f"{store.name} found nothing for a question the graph answers"
+    assert {candidate.key() for candidate in risks} != {
+        candidate.key() for candidate in deliveries
+    }, f"{store.name} returns the same evidence regardless of the question"
+
+
+@pytest.mark.anyio
+async def test_the_evidence_is_mostly_about_what_was_asked(store: GraphStore):
+    # Difference alone would be satisfied by returning two different arbitrary
+    # prefixes. This asks that the evidence actually concerns the question.
+    candidates = await store.retrieve(RetrievalRequest(query="risk", max_candidates=20))
+
+    on_topic = [candidate for candidate in candidates if "risk" in candidate.searchable.lower()]
+    assert len(on_topic) >= len(candidates) / 2, (
+        f"{store.name} returned {len(on_topic)}/{len(candidates)} candidates about risk"
+    )
+
+
+@pytest.mark.anyio
+async def test_a_question_with_no_content_words_still_returns_evidence(store: GraphStore):
+    # "what is there" stems to nothing. A store with no terms to search on has
+    # no relevance to select by, and answering with silence would be worse than
+    # answering with a prefix.
+    candidates = await store.retrieve(RetrievalRequest(query="what is there?"))
+
+    assert candidates
+
+
+@pytest.mark.anyio
 async def test_declares_an_identity_a_request_can_name(store: GraphStore):
     assert store.name and store.name.isidentifier()
     assert store.description
