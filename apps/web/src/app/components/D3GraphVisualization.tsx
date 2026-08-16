@@ -80,14 +80,20 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
 
   // Main visualization effect
   useEffect(() => {
-    if (!svgRef.current || data.nodes.length === 0) return;
+    if (!svgRef.current) return;
 
     const svg = d3.select(svgRef.current);
     const width = dimensions.width;
     const height = dimensions.height;
 
-    // Clear previous content
+    // Clear before any early exit. This used to sit after a `return` on empty
+    // data, so deleting a conversation reset the counts to zero while the old
+    // drawing stayed on screen — the panel claimed nothing and showed
+    // something.
     svg.selectAll('*').remove();
+    simulationRef.current?.stop();
+
+    if (data.nodes.length === 0) return;
 
     // Create main group for zoom/pan
     const g = svg.append('g');
