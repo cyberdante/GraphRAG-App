@@ -138,3 +138,5 @@ export interface GraphRagClient {
     signal?: AbortSignal,
   ): AsyncGenerator<StreamEvent>;
 }
+
+export * from './ontology';

@@ -1,6 +1,6 @@
+import { graphToJsonLD } from '@graphrag/shared';
 import type { GraphRagClient, QueryRequest, StreamEvent } from '@/types';
 import { generateMockResponse, supplyChainGraphData } from './mockData';
-import { graphToJsonLD } from './jsonLdConverter';
 
 /**
  * Offline stand-in for the FastAPI service. It emits exactly the events

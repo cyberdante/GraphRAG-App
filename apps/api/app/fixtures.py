@@ -5,8 +5,6 @@ The same graph and canned answers the web app used to hold in
 exercised end to end before Bedrock and Neptune are wired up in Sprint 2.
 """
 
-from typing import Any
-
 from .models import Citation, GraphData, GraphEdge, GraphNode
 
 SUPPLY_CHAIN_GRAPH = GraphData(
@@ -234,37 +232,6 @@ more specific."""
             confidence=0.90,
         )
     ]
-
-
-JSONLD_CONTEXT: dict[str, str] = {
-    "@vocab": "https://schema.org/",
-    "suppliesTo": "https://supply-chain.example.org/suppliesTo",
-    "ships": "https://supply-chain.example.org/ships",
-    "hasRisk": "https://supply-chain.example.org/hasRisk",
-    "relatedTo": "https://supply-chain.example.org/relatedTo",
-    "Supplier": "https://supply-chain.example.org/Supplier",
-    "Shipment": "https://supply-chain.example.org/Shipment",
-    "RiskSignal": "https://supply-chain.example.org/RiskSignal",
-    "Port": "https://supply-chain.example.org/Port",
-    "Product": "https://supply-chain.example.org/Product",
-}
-
-
-def graph_to_jsonld(graph: GraphData) -> dict[str, Any]:
-    """Same shape the frontend converter produces, so exports stay compatible."""
-    entities: list[dict[str, Any]] = []
-
-    for node in graph.nodes:
-        relationships: dict[str, list[dict[str, str]]] = {}
-        for link in graph.links:
-            if link.source != node.id:
-                continue
-            predicate = link.type or link.label or "relatedTo"
-            relationships.setdefault(predicate, []).append({"@id": link.target})
-
-        entities.append({"@id": node.id, "@type": node.type, "name": node.label, **relationships})
-
-    return {"@context": JSONLD_CONTEXT, "@graph": entities}
 
 
 def subgraph(limit: int) -> GraphData:

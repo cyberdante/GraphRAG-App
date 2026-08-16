@@ -11,7 +11,7 @@ import logging
 from collections.abc import AsyncGenerator
 
 from .config import Settings
-from .fixtures import SUPPLY_CHAIN_GRAPH, answer_for, graph_to_jsonld, subgraph
+from .fixtures import SUPPLY_CHAIN_GRAPH, answer_for, subgraph
 from .models import (
     DeltaPayload,
     DonePayload,
@@ -20,6 +20,7 @@ from .models import (
     StatusPayload,
     UsagePayload,
 )
+from .ontology import graph_to_jsonld
 
 logger = logging.getLogger(__name__)
 
