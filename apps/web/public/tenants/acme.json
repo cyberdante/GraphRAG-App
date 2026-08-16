@@ -1,0 +1,52 @@
+{
+  "id": "acme",
+  "brand": {
+    "name": "GraphRAG Console",
+    "initials": "GR"
+  },
+  "palette": {
+    "primary": "#1976d2",
+    "secondary": "#dc004e",
+    "background": "#F4F6F8",
+    "surface": "#FFFFFF",
+    "divider": "#E0E0E0",
+    "success": "#2E7D32",
+    "warning": "#ED6C02",
+    "error": "#C62828"
+  },
+  "shape": {
+    "radius": 8,
+    "borderWidth": 1,
+    "flat": false
+  },
+  "density": {
+    "spacing": 8,
+    "fontScale": 1
+  },
+  "typography": {
+    "fontFamily": "\"Helvetica Neue\", Arial, sans-serif",
+    "headingWeight": 600,
+    "buttonTextTransform": "none",
+    "letterSpacing": "0"
+  },
+  "copy": {
+    "inputPlaceholder": "Ask a question about your supply chain...",
+    "welcome": "Ask questions about your supply chain data. Answers are grounded in the knowledge graph, with citations and the subgraph they came from.",
+    "starters": [
+      "Which suppliers are at risk?",
+      "Show shipment status",
+      "What are the inventory levels?"
+    ]
+  },
+  "graph": {
+    "nodeColors": {
+      "Supplier": "#2E7D32",
+      "Shipment": "#1565C0",
+      "Product": "#6A1B9A",
+      "Location": "#455A64",
+      "Risk": "#C62828",
+      "RiskSignal": "#E64A19"
+    },
+    "defaultNode": "#78909C"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "id": "lumen",
+  "brand": {
+    "name": "Lumen Intelligence",
+    "initials": "LI"
+  },
+  "palette": {
+    "primary": "#4C1D95",
+    "secondary": "#B91C1C",
+    "background": "#FBF7F4",
+    "surface": "#FFFFFF",
+    "divider": "#E8DFD8",
+    "success": "#2E7D32",
+    "warning": "#ED6C02",
+    "error": "#C62828"
+  },
+  "shape": {
+    "radius": 18,
+    "borderWidth": 1,
+    "flat": true
+  },
+  "density": {
+    "spacing": 10,
+    "fontScale": 1.05
+  },
+  "typography": {
+    "fontFamily": "\"Iowan Old Style\", \"Palatino Linotype\", Georgia, serif",
+    "headingWeight": 600,
+    "buttonTextTransform": "none",
+    "letterSpacing": "0"
+  },
+  "copy": {
+    "inputPlaceholder": "What would you like to know?",
+    "welcome": "A research assistant over your knowledge graph. Ask in plain language; every claim is traceable to its source.",
+    "starters": [
+      "Summarise the current risks",
+      "How are these entities connected?",
+      "What changed this quarter?"
+    ]
+  },
+  "graph": {
+    "nodeColors": {
+      "Supplier": "#4C1D95",
+      "Shipment": "#0E7490",
+      "Product": "#9D174D",
+      "Location": "#78716C",
+      "Risk": "#B91C1C",
+      "RiskSignal": "#C2410C"
+    },
+    "defaultNode": "#A8A29E",
+    "background": "#F5F0EC"
+  }
+}

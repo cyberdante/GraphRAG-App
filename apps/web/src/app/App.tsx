@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Box, CssBaseline, Snackbar, ThemeProvider } from '@mui/material';
-import { buildTheme, resolveTenant } from '@/theme';
+import { buildTheme } from '@/theme';
 import { Navbar } from './components/Navbar';
 import { QueryInput } from './components/QueryInput';
 import { StreamingResponse } from './components/StreamingResponse';
@@ -15,6 +15,7 @@ import {
   exportGraphToJsonLD,
 } from '@/utils/exportUtils';
 import { readJson, readString, remove, writeJson, writeString } from '@/utils/storage';
+import type { Tenant } from '@ragstone/shared';
 import type { GraphData, Message, QueryHistoryItem, QueryRequest } from '@/types';
 
 const api = createClient();
@@ -32,7 +33,7 @@ const MAX_HISTORY_ITEMS = 200;
 const newId = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
-function AppContent() {
+function AppContent({ tenant }: { tenant: Tenant }) {
   const [darkMode, setDarkMode] = useState(() => readString('ragstone-theme') === 'dark');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -46,9 +47,6 @@ function AppContent() {
   const abortRef = useRef<AbortController | null>(null);
   const hydrated = useRef(false);
 
-  // Which brand this instance wears. `?tenant=` selects it for now; item 73
-  // replaces that with a fetched document, and item 76 with a switcher.
-  const tenant = useMemo(() => resolveTenant(), []);
   const theme = useMemo(() => buildTheme(tenant, darkMode), [tenant, darkMode]);
 
 
@@ -387,12 +385,17 @@ function AppContent() {
   );
 }
 
-function App({ ...props }: React.ComponentProps<'div'>) {
+interface AppProps extends React.ComponentProps<'div'> {
+  /** Resolved before render in main.tsx — see loadTenant. */
+  tenant: Tenant;
+}
+
+function App({ tenant, ...props }: AppProps) {
   // Explicitly consume all props (including Figma's data-fg-* attributes)
   // but don't pass them to child components. This prevents React warnings
   // about unsupported props on Material UI components.
   void props;
-  return <AppContent />;
+  return <AppContent tenant={tenant} />;
 }
 
 export default App;

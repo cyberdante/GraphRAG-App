@@ -1,0 +1,53 @@
+{
+  "id": "meridian",
+  "brand": {
+    "name": "Meridian Supply",
+    "initials": "MS"
+  },
+  "palette": {
+    "primary": "#B45309",
+    "secondary": "#334155",
+    "background": "#F6F5F2",
+    "surface": "#FFFFFF",
+    "divider": "#D6D3CE",
+    "success": "#2E7D32",
+    "warning": "#ED6C02",
+    "error": "#C62828"
+  },
+  "shape": {
+    "radius": 0,
+    "borderWidth": 2,
+    "flat": true
+  },
+  "density": {
+    "spacing": 6,
+    "fontScale": 0.94
+  },
+  "typography": {
+    "fontFamily": "\"IBM Plex Sans\", \"Helvetica Neue\", Arial, sans-serif",
+    "headingWeight": 700,
+    "buttonTextTransform": "uppercase",
+    "letterSpacing": "0.06em"
+  },
+  "copy": {
+    "inputPlaceholder": "Ask about suppliers, shipments or risk...",
+    "welcome": "Interrogate the logistics graph. Every answer cites the records it was drawn from.",
+    "starters": [
+      "Which suppliers are behind schedule?",
+      "Where is shipment #2401?",
+      "What is driving the delay risk?"
+    ]
+  },
+  "graph": {
+    "nodeColors": {
+      "Supplier": "#B45309",
+      "Shipment": "#0F766E",
+      "Product": "#4338CA",
+      "Location": "#57534E",
+      "Risk": "#B91C1C",
+      "RiskSignal": "#EA580C"
+    },
+    "defaultNode": "#78716C",
+    "background": "#EFEDE8"
+  }
+}

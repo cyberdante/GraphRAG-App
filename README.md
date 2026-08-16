@@ -60,6 +60,30 @@ to `apps/web/.env.local` and set `VITE_USE_MOCK=true`.
 | `pnpm lint` | Ruff check and format check on the service |
 | `pnpm api:setup` | Create or repair the Python environment |
 
+## White-labelling
+
+Every visible name, colour, shape and phrase belongs to a tenant. Nothing about
+a client is compiled in: the document is fetched at boot from `/tenants/{id}.json`,
+so onboarding a client is a file, not a release.
+
+```
+?tenant=meridian          →  the URL wins, so a demo can be linked at a brand
+VITE_TENANT=meridian      →  otherwise the deployment's default
+                          →  otherwise the bundled fallback
+```
+
+Try `?tenant=meridian` or `?tenant=lumen` against the dev server. The three
+bundled tenants differ in corner radius, spacing base, type family, node
+colours and wording, because a white-label claim tested against near-identical
+themes proves nothing.
+
+A fetched document is not trusted. Every field falls back independently and
+what was repaired is reported, so one mistyped hex value cannot stop the app
+rendering — and a palette that cannot carry readable text is reported rather
+than silently altered, since changing a client's brand colour is worse than
+telling them it fails. `scripts/emit-tenants.mjs` regenerates the served
+documents from the bundled ones so the two cannot drift.
+
 ## Tests
 
 Vitest with jsdom on the web side, pytest on the service. CI runs typecheck,
