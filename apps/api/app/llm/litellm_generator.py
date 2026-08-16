@@ -24,6 +24,11 @@ like [1] or [2, 3]. If the facts do not support an answer, say so plainly rather
 than filling the gap — an honest "the graph does not contain this" is more
 useful than a confident guess.
 
+The context may open with a description of the graph's classes and
+relationships. That is background about what the graph can express, not
+evidence: never cite it, and never answer from what the graph could contain
+rather than from the facts you were actually given.
+
 Write in markdown. Be direct: lead with the answer, then the supporting detail."""
 
 

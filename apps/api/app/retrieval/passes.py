@@ -32,6 +32,7 @@ from dataclasses import dataclass
 
 from . import scoring
 from .models import Candidate, RetrievalRequest
+from .schema import GraphSchema
 
 #: How the search budget divides. Entity and vocabulary matches are the direct
 #: answer to the question; expansion is context for it, and wants less.
@@ -94,3 +95,81 @@ def merge(passes: list[list[Candidate]], limit: int) -> list[Candidate]:
             if existing is None or candidate.relevancy > existing.relevancy:
                 best[candidate.key()] = candidate
     return list(best.values())[:limit]
+
+
+def anchor_classes(schema: GraphSchema, keywords: list[str]) -> set[str]:
+    """Which classes the question is about, by name.
+
+    Matched as substrings against the class name, for the same reason the
+    passes are: the question is stemmed and the graph is not, so "suppliers"
+    has to reach `Supplier`.
+    """
+    return {cls for cls in schema.classes if any(keyword in cls.lower() for keyword in keywords)}
+
+
+def relevant_predicates(schema: GraphSchema, keywords: list[str]) -> list[str]:
+    """Which relationships to expand along, and in what order.
+
+    Expansion without this walks every edge from an anchor and spends its
+    budget on whichever the database returns first. That is the same defect the
+    passes fixed one level up, one hop further out: a question about risk
+    expands a supplier into its shipments because there are more of them.
+
+    Two things make a predicate worth following:
+
+    - the question names it, or names a class at either end of it
+    - it connects a class the question named to anything else
+
+    Ordered so the ones the question actually points at come first, and the
+    graph's own frequency breaks ties — the backbone before the long tail.
+    """
+    if schema.is_empty():
+        return []
+
+    anchors = anchor_classes(schema, keywords)
+
+    def score(edge) -> tuple[int, int]:
+        named = any(keyword in edge.predicate.lower() for keyword in keywords)
+        touches = edge.domain in anchors or edge.range in anchors
+        # Naming the relationship is a stronger signal than naming something it
+        # connects, which is stronger than neither.
+        return (2 if named else 1 if touches else 0, edge.count)
+
+    ranked = sorted(schema.edges, key=score, reverse=True)
+    wanted = [edge for edge in ranked if score(edge)[0] > 0]
+
+    # Nothing matched: the question names no class and no relationship this
+    # graph has. Returning every predicate is right — an unguided expansion
+    # beats no expansion, and pretending to a plan we do not have would be
+    # worse than admitting there isn't one.
+    chosen = wanted or ranked
+
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for edge in chosen:
+        if edge.predicate not in seen:
+            seen.add(edge.predicate)
+            ordered.append(edge.predicate)
+    return ordered
+
+
+def second_hop_classes(schema: GraphSchema, keywords: list[str]) -> set[str]:
+    """Classes worth a second hop, when the request allows one.
+
+    The worked example from `asset-service`: the receiver number for an order
+    is an attribute of the *receipt*, not the order, so a one-hop search cannot
+    reach it however high the limit goes. Knowing the shape of the graph is
+    what tells retrieval when to keep walking.
+
+    Direction is deliberately ignored. The hub-and-spoke shape that makes a
+    second hop necessary usually requires reversing direction at the hub, so
+    following only outgoing edges would never arrive.
+    """
+    anchors = anchor_classes(schema, keywords)
+    if not anchors:
+        return set()
+
+    reachable: set[str] = set()
+    for cls in anchors:
+        reachable |= schema.neighbours(cls)
+    return reachable - anchors

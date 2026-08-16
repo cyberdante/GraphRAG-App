@@ -13,6 +13,7 @@ turn this service into an SSRF vector aimed at whatever the VPC can see.
 from typing import Protocol, runtime_checkable
 
 from .models import Candidate, RetrievalRequest
+from .schema import GraphSchema
 
 
 @runtime_checkable
@@ -27,6 +28,17 @@ class GraphStore(Protocol):
 
     async def retrieve(self, request: RetrievalRequest) -> list[Candidate]:
         """Return candidate evidence for the question, unranked."""
+        ...
+
+    async def schema(self) -> GraphSchema:
+        """Describe the shapes the data actually takes.
+
+        Introspected rather than declared: `ontology.py` states the vocabulary
+        this project defines, which is right for an export and wrong for
+        retrieval. A store points at whatever a deployment gave it, and a
+        service that assumes our six classes will plan its search around
+        classes that are not there.
+        """
         ...
 
 

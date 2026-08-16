@@ -9,20 +9,35 @@ nobody can find.
 import re
 
 from ..retrieval.models import Candidate
+from ..retrieval.schema import GraphSchema, render_schema_card
 
 #: Matches the inline markers the system prompt asks for: [1], [2, 3], [4][5].
 _CITATION = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
 
 
-def render_context(candidates: list[Candidate]) -> str:
-    """Numbers the evidence, best first, one fact per line."""
+def render_context(candidates: list[Candidate], schema: GraphSchema | None = None) -> str:
+    """Numbers the evidence, best first, one fact per line.
+
+    A schema card goes above it when the store could describe itself (item 67).
+    It is separated and labelled with some care: the model is told to answer
+    only from numbered facts, and the schema is not one — it is background
+    about what the graph can express. Left unlabelled, the obvious failure is a
+    model citing the schema as evidence, or answering from what the graph
+    *could* say rather than what it does.
+    """
     lines = []
     for index, candidate in enumerate(candidates, start=1):
         confidence = (
             f" (confidence {candidate.confidence:.2f})" if candidate.confidence is not None else ""
         )
         lines.append(f"[{index}] {candidate.text}{confidence}")
-    return "\n".join(lines)
+
+    facts = "\n".join(lines)
+    card = render_schema_card(schema) if schema else ""
+    if not card:
+        return facts
+
+    return f"{card}\n\nFacts retrieved for this question:\n{facts}"
 
 
 def cited_indices(answer: str) -> list[int]:

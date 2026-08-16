@@ -6,10 +6,13 @@ exercised end to end without AWS, and the service tests assert behaviour rather
 than mocks.
 """
 
+from collections import Counter
+
 from .. import fixtures
 from ..models import GraphEdge, GraphNode
 from . import passes, scoring
 from .models import Candidate, RetrievalRequest
+from .schema import GraphSchema, SchemaEdge
 
 
 def _label(nodes: dict[str, GraphNode], node_id: str) -> str:
@@ -55,12 +58,20 @@ class FixtureGraphStore:
             )
         ][: budgets.vocabulary]
 
-        # One hop out from whatever the direct passes anchored on.
+        # One hop out from whatever the direct passes anchored on, following the
+        # relationships the schema says are worth following first (item 68).
+        # Unordered, a tight budget spends itself on whichever edges happen to
+        # come first — which for a hub supplier means its shipments, however
+        # firmly the question was about risk.
         anchors = {link.source for link in entity_hits + vocabulary_hits}
         anchors |= {link.target for link in entity_hits + vocabulary_hits}
-        expansion_hits = [
-            link for link in in_scope if link.source in anchors or link.target in anchors
-        ][: budgets.expansion]
+
+        plan = passes.relevant_predicates(await self.schema(), keywords)
+        rank = {predicate: index for index, predicate in enumerate(plan)}
+
+        reachable = [link for link in in_scope if link.source in anchors or link.target in anchors]
+        reachable.sort(key=lambda link: rank.get(link.type, len(rank)))
+        expansion_hits = reachable[: budgets.expansion]
 
         return passes.merge(
             [
@@ -70,6 +81,23 @@ class FixtureGraphStore:
             ],
             budgets.total,
         )
+
+    async def schema(self) -> GraphSchema:
+        graph = fixtures.SUPPLY_CHAIN_GRAPH
+        nodes = {node.id: node for node in graph.nodes}
+
+        counts: Counter[tuple[str, str, str]] = Counter()
+        for link in graph.links:
+            subject = nodes.get(link.source)
+            obj = nodes.get(link.target)
+            if subject and obj:
+                counts[(subject.type, link.type, obj.type)] += 1
+
+        edges = [
+            SchemaEdge(domain=domain, predicate=predicate, range=range_, count=count)
+            for (domain, predicate, range_), count in counts.most_common()
+        ]
+        return GraphSchema(edges=edges)
 
     @staticmethod
     def _matches(keywords: list[str], *fields: str) -> bool:

@@ -22,6 +22,7 @@ from typing import Any
 
 from . import passes, scoring
 from .models import Candidate, RetrievalRequest
+from .schema import MAX_SHAPES, GraphSchema, SchemaEdge
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class CypherGraphStore:
     def __init__(self, driver: Any, database: str = "neo4j") -> None:
         self._driver = driver
         self._database = database
+        self._schema: GraphSchema | None = None
 
     async def retrieve(self, request: RetrievalRequest) -> list[Candidate]:
         keywords = passes.keywords_for(request)
@@ -70,11 +72,25 @@ class CypherGraphStore:
                 {row["subject_id"] for row in entity_rows + vocabulary_rows}
                 | {row["object_id"] for row in entity_rows + vocabulary_rows}
             )
+
+            # Expansion follows the relationships the schema says are worth
+            # following, in that order (item 68). Without it, expansion walks
+            # every edge from an anchor and spends its budget on whichever the
+            # database returns first — a question about risk expands a supplier
+            # into its shipments, because there are more of them.
+            graph_schema = await self._cached_schema(session)
+            predicates = passes.relevant_predicates(graph_schema, keywords)
+
             expansion_rows = (
                 await self._run(
                     session,
                     _BY_EXPANSION,
-                    {"types": types, "anchors": anchors, "limit": budgets.expansion},
+                    {
+                        "types": types,
+                        "anchors": anchors,
+                        "predicates": predicates,
+                        "limit": budgets.expansion,
+                    },
                 )
                 if anchors
                 else []
@@ -88,6 +104,62 @@ class CypherGraphStore:
             ],
             budgets.total,
         )
+
+    async def _cached_schema(self, session) -> GraphSchema:
+        """The schema, read once and kept.
+
+        Introspection is a distinct-triple scan. Running it per query would put
+        a full pass over the graph in front of every question to save a few
+        rows of expansion, which is a poor trade at any size.
+
+        Cached for the life of the store, not with a clock: the registry builds
+        one store per deployment, a schema changes when the data model changes,
+        and a restart is already what that implies. A wrong assumption here
+        costs a stale traversal plan, not a stale answer — the evidence itself
+        is always read fresh.
+        """
+        if self._schema is None:
+            self._schema = await self._read_schema(session)
+        return self._schema
+
+    async def schema(self) -> GraphSchema:
+        """Asks the store which shapes its data actually takes.
+
+        Counted and ordered by frequency, so a card built from this leads with
+        the graph's backbone rather than its rarest corner — and so a cap, if
+        one is hit, drops the tail rather than something load-bearing.
+
+        Read one over the cap on purpose: that is how truncation is *detected*
+        rather than assumed, and a partial schema that does not say so is worse
+        than none, because it teaches the model that the missing relationships
+        do not exist.
+        """
+        async with self._driver.session(database=self._database) as session:
+            return await self._read_schema(session)
+
+    async def _read_schema(self, session) -> GraphSchema:
+        rows = await self._run(session, _SCHEMA_SHAPES, {"limit": MAX_SHAPES + 1})
+
+        truncated = len(rows) > MAX_SHAPES
+        edges = [
+            SchemaEdge(
+                domain=row["domain"],
+                predicate=row["predicate"],
+                range=row["range"],
+                count=row["total"],
+            )
+            for row in rows[:MAX_SHAPES]
+            if row["domain"] and row["range"]
+        ]
+
+        if truncated:
+            logger.warning(
+                "Graph schema hit the %d-shape cap; the rarest relationships are "
+                "not described. Raise MAX_SHAPES if this store is genuinely that wide.",
+                MAX_SHAPES,
+            )
+
+        return GraphSchema(edges=edges, truncated=truncated)
 
     async def _run(self, session, cypher: str, parameters: dict[str, Any]) -> list[dict[str, Any]]:
         result = await session.run(cypher, parameters)
@@ -205,9 +277,35 @@ _BY_VOCABULARY = f"""
 
 #: One hop out from what the direct passes anchored on: the fact that explains
 #: the match, rather than only the match.
+#:
+#: Ordered by the schema's plan rather than by whatever the database returns
+#: first. An unranked expansion under a tight budget is indistinguishable from
+#: an arbitrary one. An empty plan orders by nothing and still expands, which
+#: is the right answer when the question names nothing this graph has.
 _BY_EXPANSION = f"""
     MATCH (subject)-[relation]->(object)
     WHERE {_TYPE_FILTER}
       AND (subject.id IN $anchors OR object.id IN $anchors)
+    WITH subject, relation, object,
+         [i IN range(0, size($predicates) - 1)
+          WHERE $predicates[i] = type(relation) | i] AS position
+    WITH subject, relation, object,
+         CASE WHEN size(position) > 0 THEN position[0] ELSE size($predicates) END AS rank
+    ORDER BY rank
     {_PROJECTION}
+"""
+
+
+#: Every shape the data takes, commonest first. One row per distinct
+#: (class, predicate, class), so the result is the size of the schema rather
+#: than the size of the graph.
+_SCHEMA_SHAPES = """
+    MATCH (subject)-[relation]->(object)
+    WITH labels(subject)[0] AS domain,
+         type(relation)     AS predicate,
+         labels(object)[0]  AS range,
+         count(*)           AS total
+    RETURN domain, predicate, range, total
+    ORDER BY total DESC
+    LIMIT $limit
 """

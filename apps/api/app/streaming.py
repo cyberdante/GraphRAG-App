@@ -141,7 +141,17 @@ async def stream_answer(
         )
 
         # The evidence, numbered so the model has a handle to cite.
-        context = render_context(top)
+        # Asked of the store, not compiled in: a deployment's graph is whatever
+        # it points at, and a service that assumes our six classes describes
+        # someone else's data wrongly. Failure here costs the card, not the
+        # answer — retrieval already worked.
+        try:
+            graph_schema = await store.schema()
+        except Exception:
+            logger.warning("Could not read the schema from %s.", store.name, exc_info=True)
+            graph_schema = None
+
+        context = render_context(top, graph_schema)
         usage: dict[str, int] = {}
         answer = ""
 
