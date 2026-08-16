@@ -1,0 +1,13 @@
+{
+  "name": "@graphrag/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "pnpm wrapper around the Python service so `pnpm dev` starts both apps.",
+  "scripts": {
+    "setup": "bash scripts/setup.sh",
+    "dev": "./.venv/bin/uvicorn app.main:app --reload --port 8000",
+    "start": "./.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000",
+    "lint": "./.venv/bin/ruff check app",
+    "test": "./.venv/bin/pytest"
+  }
+}

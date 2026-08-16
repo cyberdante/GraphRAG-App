@@ -1,0 +1,38 @@
+[project]
+name = "graphrag-api"
+version = "0.1.0"
+description = "GraphRAG service: streams answers from Bedrock over a Neptune knowledge graph."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+]
+
+[project.optional-dependencies]
+# Sprint 2 — the real retrieval path.
+aws = [
+    "boto3>=1.35",
+    "gremlinpython>=3.7",
+    "requests-aws4auth>=1.3",
+]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",
+    "ruff>=0.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
