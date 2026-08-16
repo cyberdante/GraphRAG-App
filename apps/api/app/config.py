@@ -1,12 +1,26 @@
 from functools import lru_cache
+from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+#: apps/api — env files are resolved from here rather than the working
+#: directory, so the service reads the same configuration however it is started.
+SERVICE_ROOT = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
     """Service configuration. Everything overridable from the environment."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="RAGSTONE_", extra="ignore")
+    model_config = SettingsConfigDict(
+        # .env.local last so it wins, matching the convention Vite uses on the
+        # web side: .env is the shared checked-in-shaped defaults, .env.local is
+        # the developer's own and is gitignored.
+        env_file=(SERVICE_ROOT / ".env", SERVICE_ROOT / ".env.local"),
+        env_prefix="RAGSTONE_",
+        extra="ignore",
+        populate_by_name=True,
+    )
 
     environment: str = "development"
 
@@ -48,6 +62,13 @@ class Settings(BaseSettings):
     llm_model: str = ""
     #: Overrides the provider's usual environment variable when set.
     llm_api_key: str | None = None
+
+    # Declared with their own names rather than under the RAGSTONE_ prefix, so
+    # an existing shell environment or a provider's own tooling works untouched
+    # — and so they are read from .env.local, not only from the process
+    # environment. Never log these; use redacted() to dump settings.
+    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     answer_max_tokens: int = 4096
     llm_timeout: float = 60.0
     #: Left unset deliberately. The Claude 5 family rejects `temperature` with
@@ -62,6 +83,19 @@ class Settings(BaseSettings):
 
     # Pacing for the fixture stream, in seconds. Set to 0 in tests.
     fixture_token_delay: float = 0.03
+
+    def redacted(self) -> dict[str, object]:
+        """Settings safe to log: every secret replaced with a presence flag.
+
+        A key that reaches a log line is a leaked key — logs get shipped,
+        aggregated and retained far more widely than anyone intends.
+        """
+        SECRETS = {"llm_api_key", "anthropic_api_key", "openai_api_key"}
+        dumped = self.model_dump(mode="json")
+        return {
+            key: ("<set>" if value else None) if key in SECRETS else value
+            for key, value in dumped.items()
+        }
 
 
 @lru_cache

@@ -144,6 +144,28 @@ async def stream_answer(
             answer += piece
             yield frame("delta", DeltaPayload(text=piece))
 
+        # A reasoning model can spend the entire token budget thinking and
+        # return no text at all — the stream succeeds, usage looks healthy, and
+        # the user gets an empty bubble. Say what happened instead.
+        if not answer.strip():
+            logger.warning(
+                "empty answer from %s; %s output tokens spent",
+                generator.name,
+                usage.get("output_tokens", 0),
+            )
+            yield frame(
+                "error",
+                ErrorPayload(
+                    code="empty_answer",
+                    message=(
+                        "The model returned no text. It likely spent the whole "
+                        "token budget reasoning — raise RAGSTONE_ANSWER_MAX_TOKENS "
+                        "and try again."
+                    ),
+                ),
+            )
+            return
+
         # Citations come from what the answer actually cited, so the sources
         # panel reflects the answer rather than the retrieval.
         cited = citations_for(answer, top)

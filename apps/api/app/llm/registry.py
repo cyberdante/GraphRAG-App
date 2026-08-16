@@ -31,9 +31,22 @@ PROVIDER_DEFAULT_MODEL: dict[str, str] = {
 
 
 def provider_key(provider: str, settings: Settings) -> str | None:
-    """The key for a provider: explicit setting first, then the environment."""
+    """The key for a provider, most explicit source first.
+
+    Order: the RAGSTONE_LLM_API_KEY override, then the provider's own declared
+    setting (which covers .env, .env.local and the process environment), then a
+    bare environment lookup for providers with no declared field.
+    """
     if settings.llm_api_key:
         return settings.llm_api_key
+
+    declared = {
+        "anthropic": settings.anthropic_api_key,
+        "openai": settings.openai_api_key,
+    }.get(provider)
+    if declared:
+        return declared
+
     env_name = PROVIDER_KEY_ENV.get(provider)
     return os.environ.get(env_name) if env_name else None
 

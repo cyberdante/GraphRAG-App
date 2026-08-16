@@ -18,6 +18,7 @@ from app.llm.litellm_generator import LiteLLMAnswerGenerator
 from app.llm.registry import build_generator, resolve_model
 from app.models import Message
 from app.retrieval.models import Candidate
+from tests.conftest import isolated_settings
 
 
 def candidate(text: str, confidence: float | None = 0.9) -> Candidate:
@@ -224,28 +225,108 @@ class TestRegistry:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-        assert build_generator(Settings()).name == "fixtures"
+        assert build_generator(isolated_settings()).name == "fixtures"
 
     def test_uses_a_model_when_a_key_is_configured(self, monkeypatch) -> None:
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-        assert build_generator(Settings()).name == "model"
+        assert build_generator(isolated_settings(anthropic_api_key="sk-ant-test")).name == "model"
 
     def test_reads_the_provider_s_own_environment_variable(self, monkeypatch) -> None:
         # An existing shell environment should work untouched.
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-
-        assert build_generator(Settings(llm_provider="openai")).name == "model"
+        assert (
+            build_generator(isolated_settings(llm_provider="openai", openai_api_key="sk-test")).name
+            == "model"
+        )
 
     def test_an_explicit_setting_beats_the_environment(self, monkeypatch) -> None:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        assert build_generator(Settings(llm_api_key="sk-explicit")).name == "model"
+        assert build_generator(isolated_settings(llm_api_key="sk-explicit")).name == "model"
 
     def test_defaults_the_model_per_provider(self) -> None:
-        assert resolve_model(Settings()) == "anthropic/claude-opus-5"
-        assert resolve_model(Settings(llm_provider="openai")).startswith("openai/")
+        assert resolve_model(isolated_settings()) == "anthropic/claude-opus-5"
+        assert resolve_model(isolated_settings(llm_provider="openai")).startswith("openai/")
 
     def test_a_named_model_wins(self) -> None:
-        assert resolve_model(Settings(llm_model="anthropic/claude-haiku-4-5")) == (
+        assert resolve_model(isolated_settings(llm_model="anthropic/claude-haiku-4-5")) == (
             "anthropic/claude-haiku-4-5"
         )
+
+
+class TestSecretHandling:
+    """Keys must be readable by the service and invisible everywhere else."""
+
+    def test_reads_a_provider_key_from_env_local(self, tmp_path, monkeypatch) -> None:
+        # The failure this guards: Settings loaded .env only, and the key was
+        # not a declared field, so a key placed in .env.local was ignored twice
+        # over and the service silently stayed on fixtures.
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        env_local = tmp_path / ".env.local"
+        env_local.write_text("ANTHROPIC_API_KEY=sk-ant-from-file\n")
+
+        class Scoped(Settings):
+            model_config = Settings.model_config | {"env_file": (env_local,)}
+
+        settings = Scoped()
+        assert settings.anthropic_api_key == "sk-ant-from-file"
+        assert build_generator(settings).name == "model"
+
+    def test_env_local_overrides_env(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        (tmp_path / ".env").write_text("ANTHROPIC_API_KEY=shared\n")
+        (tmp_path / ".env.local").write_text("ANTHROPIC_API_KEY=personal\n")
+
+        class Scoped(Settings):
+            model_config = Settings.model_config | {
+                "env_file": (tmp_path / ".env", tmp_path / ".env.local")
+            }
+
+        assert Scoped().anthropic_api_key == "personal"
+
+    def test_redacted_never_exposes_a_key(self) -> None:
+        settings = isolated_settings(
+            llm_api_key="sk-secret-1",
+            anthropic_api_key="sk-secret-2",
+            openai_api_key="sk-secret-3",
+        )
+        dumped = repr(settings.redacted())
+
+        assert "sk-secret" not in dumped
+        assert settings.redacted()["anthropic_api_key"] == "<set>"
+
+    def test_redacted_reports_absence_as_absence(self, monkeypatch) -> None:
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        assert isolated_settings(anthropic_api_key=None).redacted()["anthropic_api_key"] is None
+
+
+class TestEmptyAnswerGuard:
+    """A reasoning model can spend the whole budget thinking and return nothing.
+
+    Observed for real: at a 200-token budget one provider reported 200 output
+    tokens and produced zero characters. The stream succeeds and usage looks
+    healthy, so without a guard the user gets an empty message bubble and no
+    indication of why.
+    """
+
+    def test_reports_an_empty_answer_instead_of_streaming_nothing(
+        self, client, query_body, monkeypatch
+    ) -> None:
+        from app.llm.generator import AnswerGenerator
+        from app.main import get_generator
+
+        class SilentGenerator:
+            name = "silent"
+
+            async def stream(self, question, context, history, usage):
+                usage["output_tokens"] = 200
+                return
+                yield  # pragma: no cover - makes this an async generator
+
+        assert isinstance(SilentGenerator(), AnswerGenerator)
+        client.app.dependency_overrides[get_generator] = SilentGenerator
+
+        response = client.post("/api/query", json=query_body)
+        body = response.text
+
+        assert "event: error" in body
+        assert "token budget" in body
+        assert "event: done" not in body

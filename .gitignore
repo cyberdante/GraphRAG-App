@@ -17,9 +17,9 @@ __pycache__/
 *.egg-info/
 
 # env
-.env
-.env.local
-.env.*.local
+/**/.env
+/**/.env.local
+/**/.env.*.local
 
 # editors / os
 .DS_Store
