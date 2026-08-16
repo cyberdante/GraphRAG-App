@@ -28,8 +28,15 @@ export async function* readSseStream(
   signal?.addEventListener('abort', abort, { once: true });
 
   try {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
     while (true) {
       const { done, value } = await reader.read();
+
+      // Cancelling the reader ends the read loop cleanly, which would look
+      // like a finished answer. Aborting has to surface as an error so the
+      // caller can tell "stopped" apart from "complete".
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
