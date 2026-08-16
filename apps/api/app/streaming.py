@@ -61,6 +61,11 @@ async def stream_answer(
         max_nodes = request.retrieval.graph.max_nodes
         query_text = request.input.text
 
+        # The fixture path paces itself so the demo reads like a live pipeline.
+        # A real one has its own latency and needs no help; adding these delays
+        # would inflate every phase in the trace panel with invented work.
+        pacing = settings.fixture_token_delay if generator.name == "fixtures" else 0.0
+
         # Raises before the stream opens if the backend is unknown, so the
         # caller gets a 400 rather than an error frame mid-answer.
         store = registry.get(request.retrieval.backend)
@@ -72,7 +77,7 @@ async def stream_answer(
                 message=f"Querying knowledge graph via {store.name}...",
             ),
         )
-        await asyncio.sleep(settings.fixture_token_delay * 4)
+        await asyncio.sleep(pacing * 4)
 
         keywords = scoring.extract_keywords(query_text)
         top_k = min(request.retrieval.top_k or settings.top_k_default, settings.top_k_max)
@@ -95,7 +100,7 @@ async def stream_answer(
             "graph",
             _graph_payload(graph_from_candidates(candidates, max_nodes=min(8, max_nodes))),
         )
-        await asyncio.sleep(settings.fixture_token_delay * 6)
+        await asyncio.sleep(pacing * 6)
 
         yield frame(
             "status",
@@ -128,7 +133,7 @@ async def stream_answer(
         graph = graph_from_candidates(top, max_nodes=max_nodes)
         top = grounded_in(graph, top)
         yield frame("graph", _graph_payload(graph))
-        await asyncio.sleep(settings.fixture_token_delay * 4)
+        await asyncio.sleep(pacing * 4)
 
         yield frame(
             "status",
@@ -179,6 +184,11 @@ async def stream_answer(
                 citations=[
                     candidate.to_citation(index) for index, candidate in enumerate(cited, start=1)
                 ],
+                # Who actually did the work, so the trace panel reports fact
+                # rather than inferring it from the shape of the response.
+                model=getattr(generator, "model_name", generator.name),
+                backend=store.name,
+                candidates=len(candidates),
             ),
         )
 

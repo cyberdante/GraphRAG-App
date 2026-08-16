@@ -33,6 +33,13 @@ export interface Message {
   status?: MessageStatus;
   /** Present only when status is 'error'; shown to the user verbatim. */
   error?: string;
+  /**
+   * What the pipeline did to produce this answer. Recorded client-side because
+   * latency is only measurable where it is felt. Shape lives in
+   * apps/web/src/api/trace.ts; typed loosely here so the wire contract does not
+   * depend on a UI concern.
+   */
+  trace?: unknown;
 }
 
 export interface GraphNode {
@@ -126,6 +133,12 @@ export interface UsagePayload {
 export interface DonePayload {
   usage?: UsagePayload;
   citations?: Citation[];
+  /** The model that wrote the answer, or "fixtures" when none did. */
+  model?: string;
+  /** The retrieval backend the evidence came from. */
+  backend?: string;
+  /** How many candidates were retrieved before ranking cut them down. */
+  candidates?: number;
 }
 
 export interface ErrorPayload {

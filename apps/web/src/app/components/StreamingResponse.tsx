@@ -21,7 +21,9 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { TenantBrand, TenantCopy } from '@ragstone/shared';
+import type { QueryTrace } from '@/api/trace';
 import type { Message } from '@/types';
+import { TracePanel } from './TracePanel';
 
 interface StreamingResponseProps {
   messages: Message[];
@@ -237,6 +239,8 @@ const MessageBubble: React.FC<{ message: Message; onRetry?: () => void }> = ({
             </Typography>
           </Box>
         )}
+
+        {!isUser && message.trace ? <TracePanel trace={message.trace as QueryTrace} /> : null}
 
         {!isUser && message.citations && message.citations.length > 0 && (
           <>

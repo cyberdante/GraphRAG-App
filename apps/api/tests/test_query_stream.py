@@ -238,3 +238,70 @@ class TestCitationsMatchTheGraph:
 
         for citation in done["citations"]:
             assert set(citation.get("nodeIds") or []) <= node_ids
+
+
+class TestPacing:
+    def test_a_real_generator_is_never_slowed_artificially(self, client, query_body) -> None:
+        """Simulated pacing exists for the fixture demo, not for real answers.
+
+        Left unconditional it added roughly half a second to every query and,
+        worse, the trace panel reported it as time the pipeline had spent
+        working.
+        """
+        import time
+
+        from app.llm.generator import AnswerGenerator
+        from app.main import get_generator
+
+        class InstantGenerator:
+            name = "model"
+            model_name = "test/instant"
+
+            async def stream(self, question, context, history, usage):
+                usage["output_tokens"] = 1
+                yield "done"
+
+        assert isinstance(InstantGenerator(), AnswerGenerator)
+        client.app.dependency_overrides[get_generator] = InstantGenerator
+
+        started = time.perf_counter()
+        response = client.post("/api/query", json=query_body)
+        elapsed = time.perf_counter() - started
+
+        assert response.status_code == 200
+        assert elapsed < 0.2
+
+
+class TestDoneReportsWhatDidTheWork:
+    """The trace panel shows fact, so the service has to state it.
+
+    This exists because the edit that added these fields silently did nothing —
+    a formatter had rewrapped the block it was anchored to — and the omission
+    only surfaced when the panel rendered three empty values.
+    """
+
+    def test_names_the_model_and_the_backend(self, client: TestClient, query_body: dict) -> None:
+        done = next(data for event, data in stream(client, query_body) if event == "done")
+
+        assert done["model"]
+        assert done["backend"] == "fixtures"
+
+    def test_reports_how_many_candidates_were_considered(
+        self, client: TestClient, query_body: dict
+    ) -> None:
+        # What was retrieved before ranking cut it down — the number that says
+        # whether the graph was searched or merely consulted.
+        done = next(data for event, data in stream(client, query_body) if event == "done")
+
+        # Never fewer than what ended up cited: citations are drawn from these.
+        assert done["candidates"] >= len(done["citations"]) > 0
+
+    def test_the_candidate_count_shows_work_the_answer_did_not_use(
+        self, client: TestClient, query_body: dict
+    ) -> None:
+        # With a tight frame the narrowing becomes visible: more was retrieved
+        # than survived into the answer, which is the point of reporting it.
+        query_body["retrieval"]["graph"]["max_nodes"] = 4
+        done = next(data for event, data in stream(client, query_body) if event == "done")
+
+        assert done["candidates"] > len(done["citations"])

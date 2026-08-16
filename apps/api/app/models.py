@@ -115,6 +115,11 @@ class UsagePayload(BaseModel):
 class DonePayload(BaseModel):
     usage: UsagePayload | None = None
     citations: list[Citation] | None = None
+    #: What did the work, so the trace panel reports fact rather than guess.
+    model: str | None = None
+    backend: str | None = None
+    #: Retrieved before ranking, so the trace shows what was considered.
+    candidates: int | None = None
 
 
 class ErrorPayload(BaseModel):

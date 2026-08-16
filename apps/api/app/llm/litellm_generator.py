@@ -42,6 +42,8 @@ class LiteLLMAnswerGenerator:
         temperature: float | None = None,
     ) -> None:
         self._model = model
+        #: Reported in the done frame so the trace panel names the real model.
+        self.model_name = model
         self._api_key = api_key
         self._max_tokens = max_tokens
         self._timeout = timeout

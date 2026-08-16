@@ -14,6 +14,7 @@ import { D3GraphVisualization } from './components/D3GraphVisualization';
 import { QueryHistory } from './components/QueryHistory';
 import { TenantSwitcher } from './components/TenantSwitcher';
 import { createClient } from '@/api/client';
+import { TraceRecorder } from '@/api/trace';
 import {
   exportConversationToPDF,
   exportConversationToCSV,
@@ -237,12 +238,14 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
       };
 
       let answer = '';
+      const recorder = new TraceRecorder();
 
       try {
         for await (const event of api.streamQuery(request, controller.signal)) {
           switch (event.type) {
             case 'status':
               setCurrentStatus(event.data.message);
+              recorder.startPhase(event.data.phase, event.data.message);
               break;
 
             case 'graph':
@@ -251,14 +254,17 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
 
             case 'delta':
               // Deltas are increments; the running answer lives here.
+              recorder.markFirstToken();
               answer += event.data.text;
               patchAssistant({ content: answer });
               break;
 
             case 'done':
+              recorder.finish(event.data);
               patchAssistant({
                 status: 'complete',
                 citations: event.data.citations,
+                trace: recorder.snapshot(),
               });
               break;
 
@@ -268,8 +274,10 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
           }
         }
       } catch (error) {
+        recorder.abandon();
         if (controller.signal.aborted) {
           patchAssistant({
+            trace: recorder.snapshot(),
             status: 'stopped',
             error: answer ? undefined : 'Stopped before the answer started.',
           });

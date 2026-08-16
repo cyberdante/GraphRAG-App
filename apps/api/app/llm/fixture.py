@@ -14,6 +14,7 @@ from ..models import Message
 
 class FixtureAnswerGenerator:
     name = "fixtures"
+    model_name = "fixtures"
 
     def __init__(self, token_delay: float = 0.0) -> None:
         self._token_delay = token_delay
