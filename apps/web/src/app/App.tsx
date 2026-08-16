@@ -23,8 +23,18 @@ import {
   exportGraphToJsonLD,
 } from '@/utils/exportUtils';
 import { readJson, readString, remove, writeJson, writeString } from '@/utils/storage';
+import { fetchBackends } from '@/api/backends';
+import { RetrievalControls } from './components/RetrievalControls';
+import {
+  DEFAULT_SETTINGS,
+  parseSettings,
+  reconcileBackend,
+  toRetrievalOptions,
+  type RetrievalSettings,
+} from '@/utils/retrievalSettings';
 import { THEME_KEY, keysFor, purgeLegacyKeys } from '@/utils/conversationStore';
-import type { Tenant } from '@ragstone/shared';
+import type { Tenant, BackendInfo
+} from '@ragstone/shared';
 import type { GraphData, Message, QueryHistoryItem, QueryRequest } from '@/types';
 
 const api = createClient();
@@ -60,6 +70,9 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
   // Storage is namespaced per tenant, so no path can surface one tenant's
   // conversations under another's branding.
   const keys = useMemo(() => keysFor(tenant.id), [tenant.id]);
+  const [retrievalOpen, setRetrievalOpen] = useState(false);
+  const [retrieval, setRetrieval] = useState<RetrievalSettings>(DEFAULT_SETTINGS);
+  const [backends, setBackends] = useState<BackendInfo[]>([]);
 
   const handleTenantChange = useCallback(async (id: string) => {
     setSwitchingTenant(true);
@@ -91,6 +104,22 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
   }, []);
 
 
+  // What this deployment can retrieve from. The list is the server's to give;
+  // a request names a backend and never an endpoint.
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchBackends('', controller.signal).then((offered) => {
+      setBackends(offered);
+      setRetrieval((previous) =>
+        reconcileBackend(
+          previous,
+          offered.map((backend) => backend.name),
+        ),
+      );
+    });
+    return () => controller.abort();
+  }, []);
+
   // Clear anything written under the old unscoped schema, once, before the
   // first tenant hydrates.
   useEffect(() => {
@@ -104,6 +133,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
     hydrated.current = false;
 
     setQueryHistory(readJson<QueryHistoryItem[]>(keys.history, []));
+    setRetrieval(parseSettings(readJson<unknown>(keys.retrieval, null)));
     const savedConversationId = readString(keys.current);
 
     if (savedConversationId) {
@@ -138,6 +168,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
 
   useEffect(() => {
     if (!hydrated.current) return;
+    writeJson(keys.retrieval, retrieval);
     writeJson(keys.history, queryHistory);
   }, [queryHistory]);
 
@@ -250,14 +281,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
           entityIds,
         },
         options: { stream: true, response_format: 'markdown' },
-        retrieval: {
-          mode: 'graph_rag',
-          graph: {
-            max_hops: 2,
-            max_nodes: 150,
-            entity_types: ['Supplier', 'Shipment', 'RiskSignal'],
-          },
-        },
+        retrieval: toRetrievalOptions(retrieval),
       };
 
       let answer = '';
@@ -316,7 +340,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
         setCurrentStatus('');
       }
     },
-    [currentConversationId, isStreaming, messages],
+    [currentConversationId, isStreaming, messages, retrieval],
   );
 
   const handleRetry = useCallback(() => {
@@ -359,6 +383,16 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%' }}>
+        <RetrievalControls
+          open={retrievalOpen}
+          onClose={() => setRetrievalOpen(false)}
+          settings={retrieval}
+          onChange={setRetrieval}
+          backends={backends}
+          entityTypes={Object.keys(tenant.graph.nodeColors)}
+          disabled={isStreaming}
+        />
+
         <Navbar
           brand={tenant.brand}
           switcher={
@@ -372,6 +406,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
             ) : undefined
           }
           onMenuClick={() => setSidebarOpen(true)}
+          onRetrievalClick={() => setRetrievalOpen(true)}
           darkMode={darkMode}
           onThemeToggle={() => setDarkMode((previous) => !previous)}
           onNewChat={handleNewChat}

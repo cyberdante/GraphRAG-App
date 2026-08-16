@@ -126,3 +126,19 @@ describe('formatting', () => {
     expect(formatTokens(1234567)).toBe((1234567).toLocaleString());
   });
 });
+
+describe('what the collapsed trace says', () => {
+  it('names the backend, not only the model', () => {
+    // Both a store and the answer generator can be called "fixtures". An
+    // unqualified name in the summary reads as the backend, so switching
+    // backend appeared to change nothing until the panel was expanded — which
+    // is precisely the feedback the backend selector exists to give.
+    const recorder = new TraceRecorder(() => 0);
+    recorder.startPhase('retrieval', 'a');
+    recorder.finish({ backend: 'cypher', model: 'fixtures' });
+
+    const snapshot = recorder.snapshot();
+    expect(snapshot.backend).toBe('cypher');
+    expect(snapshot.model).toBe('fixtures');
+  });
+});

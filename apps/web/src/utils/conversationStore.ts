@@ -29,6 +29,10 @@ export interface ConversationKeys {
   conversationPrefix: string;
   conversation: (conversationId: string) => string;
   graph: (conversationId: string) => string;
+  /** Retrieval controls. Scoped per tenant because entity types are a
+   *  property of the tenant's domain: a filter naming Supplier means nothing
+   *  under a tenant whose graph is about clinical trials. */
+  retrieval: string;
 }
 
 export function keysFor(tenantId: string): ConversationKeys {
@@ -41,6 +45,7 @@ export function keysFor(tenantId: string): ConversationKeys {
     conversationPrefix,
     conversation: (conversationId: string) => `${conversationPrefix}${conversationId}`,
     graph: (conversationId: string) => `${base}:graph:${conversationId}`,
+    retrieval: `${base}:retrieval`,
   };
 }
 

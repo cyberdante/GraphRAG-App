@@ -21,7 +21,8 @@ import {
   FileDownload as DownloadIcon,
   PictureAsPdf as PdfIcon,
   TableChart as CsvIcon,
-  Code as JsonIcon
+  Code as JsonIcon,
+  Tune as TuneIcon
 } from '@mui/icons-material';
 
 interface NavbarProps {
@@ -29,6 +30,8 @@ interface NavbarProps {
   /** Optional control rendered before the theme toggle. */
   switcher?: React.ReactNode;
   onMenuClick: () => void;
+  /** Opens the retrieval controls. */
+  onRetrievalClick: () => void;
   darkMode: boolean;
   onThemeToggle: () => void;
   onNewChat: () => void;
@@ -42,7 +45,8 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   brand,
   switcher, 
-  onMenuClick, 
+  onMenuClick,
+  onRetrievalClick, 
   darkMode, 
   onThemeToggle, 
   onNewChat,
@@ -215,6 +219,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             <ListItemText>Export Graph JSON-LD</ListItemText>
           </MenuItem>
         </Menu>
+
+        <Tooltip title="Retrieval settings">
+          <IconButton
+            onClick={onRetrievalClick}
+            sx={{ color: 'text.primary' }}
+            aria-label="Retrieval settings"
+          >
+            <TuneIcon />
+          </IconButton>
+        </Tooltip>
 
         {/* Hamburger Menu */}
         <IconButton

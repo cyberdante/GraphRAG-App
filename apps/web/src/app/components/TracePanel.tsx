@@ -34,6 +34,11 @@ export const TracePanel: React.FC<TracePanelProps> = ({ trace }) => {
   const summary = [
     trace.totalMs !== undefined ? formatDuration(trace.totalMs) : null,
     trace.usage ? `${formatTokens(trace.usage.output_tokens)} out` : null,
+    // Qualified, because the store and the answer generator can both be
+    // called "fixtures": an unlabelled name here reads as the backend, so
+    // changing backend looked like it had done nothing until the panel was
+    // expanded.
+    trace.backend ? `via ${trace.backend}` : null,
     trace.model,
   ].filter(Boolean);
 
