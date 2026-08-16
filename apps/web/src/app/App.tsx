@@ -23,15 +23,11 @@ import {
   exportGraphToJsonLD,
 } from '@/utils/exportUtils';
 import { readJson, readString, remove, writeJson, writeString } from '@/utils/storage';
+import { THEME_KEY, keysFor, purgeLegacyKeys } from '@/utils/conversationStore';
 import type { Tenant } from '@ragstone/shared';
 import type { GraphData, Message, QueryHistoryItem, QueryRequest } from '@/types';
 
 const api = createClient();
-
-const CURRENT_CONVERSATION_KEY = 'ragstone-current-conversation-id';
-const HISTORY_KEY = 'ragstone-query-history';
-const conversationKey = (id: string) => `ragstone-conversation-${id}`;
-const graphKey = (id: string) => `ragstone-graph-${id}`;
 
 const EMPTY_GRAPH: GraphData = { nodes: [], links: [] };
 
@@ -42,7 +38,7 @@ const newId = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
 function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
-  const [darkMode, setDarkMode] = useState(() => readString('ragstone-theme') === 'dark');
+  const [darkMode, setDarkMode] = useState(() => readString(THEME_KEY) === 'dark');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -61,12 +57,27 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
   const [tenant, setTenant] = useState(initialTenant);
   const [switchingTenant, setSwitchingTenant] = useState(false);
   const theme = useMemo(() => buildTheme(tenant, darkMode), [tenant, darkMode]);
+  // Storage is namespaced per tenant, so no path can surface one tenant's
+  // conversations under another's branding.
+  const keys = useMemo(() => keysFor(tenant.id), [tenant.id]);
 
   const handleTenantChange = useCallback(async (id: string) => {
     setSwitchingTenant(true);
     try {
       const resolution = await loadTenant(id);
       reportResolution(resolution);
+
+      // Clear before the brand changes, not after. Storage is namespaced per
+      // tenant so nothing can be written to the wrong place, but the answer
+      // and the subgraph on screen belong to the tenant that asked for them
+      // and must not survive even a frame under someone else's branding.
+      abortRef.current?.abort();
+      setIsStreaming(false);
+      setCurrentStatus('');
+      setMessages([]);
+      setGraphData(EMPTY_GRAPH);
+      setQueryHistory([]);
+
       setTenant(resolution.tenant);
 
       // Keep the URL honest, so the current view stays shareable. replaceState
@@ -80,23 +91,35 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
   }, []);
 
 
-  // Restore the last session.
+  // Clear anything written under the old unscoped schema, once, before the
+  // first tenant hydrates.
   useEffect(() => {
-    setQueryHistory(readJson<QueryHistoryItem[]>(HISTORY_KEY, []));
+    purgeLegacyKeys(window.localStorage);
+  }, []);
 
-    const savedConversationId = readString(CURRENT_CONVERSATION_KEY);
+  // Load this tenant's own session — on mount, and again whenever the tenant
+  // changes. Keyed on `keys` rather than run once, so switching brand can
+  // never leave the previous tenant's conversation on screen.
+  useEffect(() => {
+    hydrated.current = false;
+
+    setQueryHistory(readJson<QueryHistoryItem[]>(keys.history, []));
+    const savedConversationId = readString(keys.current);
+
     if (savedConversationId) {
       setCurrentConversationId(savedConversationId);
-      setMessages(readJson<Message[]>(conversationKey(savedConversationId), []));
-      setGraphData(readJson<GraphData>(graphKey(savedConversationId), EMPTY_GRAPH));
+      setMessages(readJson<Message[]>(keys.conversation(savedConversationId), []));
+      setGraphData(readJson<GraphData>(keys.graph(savedConversationId), EMPTY_GRAPH));
     } else {
       const id = newId('conv');
       setCurrentConversationId(id);
-      writeString(CURRENT_CONVERSATION_KEY, id);
+      setMessages([]);
+      setGraphData(EMPTY_GRAPH);
+      writeString(keys.current, id);
     }
 
     hydrated.current = true;
-  }, []);
+  }, [keys]);
 
   // Abandon any in-flight request when the app goes away.
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -105,8 +128,8 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
     if (!hydrated.current || !currentConversationId || messages.length === 0) return;
 
     const saved =
-      writeJson(conversationKey(currentConversationId), messages) &&
-      writeJson(graphKey(currentConversationId), graphData);
+      writeJson(keys.conversation(currentConversationId), messages) &&
+      writeJson(keys.graph(currentConversationId), graphData);
 
     if (!saved) {
       setNotice('This conversation could not be saved — browser storage is full.');
@@ -115,11 +138,11 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
 
   useEffect(() => {
     if (!hydrated.current) return;
-    writeJson(HISTORY_KEY, queryHistory);
+    writeJson(keys.history, queryHistory);
   }, [queryHistory]);
 
   useEffect(() => {
-    writeString('ragstone-theme', darkMode ? 'dark' : 'light');
+    writeString(THEME_KEY, darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
   // The browser tab is the most-seen piece of branding, and index.html cannot
@@ -136,7 +159,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
     setGraphData(EMPTY_GRAPH);
     setCurrentStatus('');
     setIsStreaming(false);
-    writeString(CURRENT_CONVERSATION_KEY, id);
+    writeString(keys.current, id);
   }, []);
 
   const handleLoadConversation = useCallback((conversationId: string) => {
@@ -144,16 +167,16 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
     setIsStreaming(false);
     setCurrentStatus('');
     setCurrentConversationId(conversationId);
-    writeString(CURRENT_CONVERSATION_KEY, conversationId);
-    setMessages(readJson<Message[]>(conversationKey(conversationId), []));
-    setGraphData(readJson<GraphData>(graphKey(conversationId), EMPTY_GRAPH));
+    writeString(keys.current, conversationId);
+    setMessages(readJson<Message[]>(keys.conversation(conversationId), []));
+    setGraphData(readJson<GraphData>(keys.graph(conversationId), EMPTY_GRAPH));
     setSidebarOpen(false);
   }, []);
 
   const handleDeleteConversation = useCallback(
     (conversationId: string) => {
-      remove(conversationKey(conversationId));
-      remove(graphKey(conversationId));
+      remove(keys.conversation(conversationId));
+      remove(keys.graph(conversationId));
       setQueryHistory((prev) => prev.filter((item) => item.conversationId !== conversationId));
 
       if (conversationId === currentConversationId) {
@@ -413,6 +436,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
           onClose={() => setSidebarOpen(false)}
           history={queryHistory}
           currentConversationId={currentConversationId}
+          conversationPrefix={keys.conversationPrefix}
           onConversationLoad={handleLoadConversation}
           onConversationDelete={handleDeleteConversation}
         />

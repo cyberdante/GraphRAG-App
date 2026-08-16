@@ -26,6 +26,8 @@ interface QueryHistoryProps {
   onClose: () => void;
   history: QueryHistoryItem[];
   currentConversationId: string;
+  /** Namespaced per tenant, so the drawer never lists another tenant's chats. */
+  conversationPrefix: string;
   onConversationLoad: (conversationId: string) => void;
   onConversationDelete: (conversationId: string) => void;
 }
@@ -37,14 +39,12 @@ interface ConversationSummary {
   timestamp: Date;
 }
 
-const CONVERSATION_PREFIX = 'ragstone-conversation-';
-
-/** Reads the stored conversations back into a list for the drawer. */
-function loadConversations(): ConversationSummary[] {
+/** Reads this tenant's stored conversations back into a list for the drawer. */
+function loadConversations(prefix: string): ConversationSummary[] {
   const summaries: ConversationSummary[] = [];
 
   for (const key of keys()) {
-    if (!key.startsWith(CONVERSATION_PREFIX)) continue;
+    if (!key.startsWith(prefix)) continue;
 
     const messages = readJson<Message[]>(key, []);
     const userMessages = messages.filter((message) => message.role === 'user');
@@ -52,7 +52,7 @@ function loadConversations(): ConversationSummary[] {
     if (!first) continue;
 
     summaries.push({
-      id: key.slice(CONVERSATION_PREFIX.length),
+      id: key.slice(prefix.length),
       firstQuery: first.content,
       queryCount: userMessages.length,
       timestamp: new Date(first.timestamp),
@@ -67,6 +67,7 @@ export const QueryHistory: React.FC<QueryHistoryProps> = ({
   onClose,
   history,
   currentConversationId,
+  conversationPrefix,
   onConversationLoad,
   onConversationDelete,
 }) => {
@@ -74,8 +75,8 @@ export const QueryHistory: React.FC<QueryHistoryProps> = ({
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) setConversations(loadConversations());
-  }, [open, history]);
+    if (open) setConversations(loadConversations(conversationPrefix));
+  }, [open, history, conversationPrefix]);
 
   const confirmDelete = (conversationId: string, event: React.MouseEvent) => {
     event.stopPropagation();
