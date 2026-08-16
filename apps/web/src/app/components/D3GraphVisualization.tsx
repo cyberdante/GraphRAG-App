@@ -18,7 +18,11 @@ interface SimulationNode extends d3.SimulationNodeDatum, GraphNode {
   y?: number;
 }
 
-interface SimulationLink extends d3.SimulationLinkDatum<SimulationNode>, GraphEdge {
+// d3 rewrites source and target from ids to node objects once the simulation
+// starts, so those two fields cannot keep the plain string type GraphEdge uses.
+interface SimulationLink
+  extends d3.SimulationLinkDatum<SimulationNode>,
+    Omit<GraphEdge, 'source' | 'target'> {
   source: string | SimulationNode;
   target: string | SimulationNode;
 }
@@ -71,7 +75,7 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
     svg.append('defs').selectAll('marker')
       .data(['end'])
       .enter().append('marker')
-        .attr('id', d => `arrow-${darkMode ? 'dark' : 'light'}`)
+        .attr('id', () => `arrow-${darkMode ? 'dark' : 'light'}`)
         .attr('viewBox', '0 -5 10 10')
         .attr('refX', 25)
         .attr('refY', 0)
@@ -148,7 +152,7 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
       });
 
     // Add labels to nodes
-    const labels = node.append('text')
+    node.append('text')
       .attr('class', 'node-label')
       .attr('dy', -22)
       .attr('text-anchor', 'middle')
@@ -247,13 +251,14 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
         const midY = bounds.y + fullHeight / 2;
         
         const scale = 0.8 / Math.max(fullWidth / width, fullHeight / height);
-        const translate = [width / 2 - scale * midX, height / 2 - scale * midY];
-        
+        const translateX = width / 2 - scale * midX;
+        const translateY = height / 2 - scale * midY;
+
         svg.transition()
           .duration(750)
           .call(
             zoom.transform as any,
-            d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+            d3.zoomIdentity.translate(translateX, translateY).scale(scale)
           );
       }
     }, 500);

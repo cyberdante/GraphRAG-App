@@ -1,4 +1,4 @@
-import { GraphData, GraphNode, GraphEdge } from '@/types';
+import type { Citation, GraphData } from '@/types';
 
 // Supply Chain Mock Data
 export const supplyChainGraphData: GraphData = {
@@ -128,7 +128,7 @@ export const mockResponses = {
   }
 };
 
-export const generateMockResponse = (query: string): { text: string; citations: any[] } => {
+export const generateMockResponse = (query: string): { text: string; citations: Citation[] } => {
   const lowerQuery = query.toLowerCase();
   
   if (lowerQuery.includes('risk') || lowerQuery.includes('supplier')) {

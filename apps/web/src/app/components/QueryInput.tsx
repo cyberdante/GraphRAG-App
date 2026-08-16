@@ -17,15 +17,19 @@ import {
   AttachFile as AttachFileIcon,
   Link as LinkIcon,
   Tag as TagIcon,
-  MoreVert as MoreVertIcon
+  MoreVert as MoreVertIcon,
+  Stop as StopIcon
 } from '@mui/icons-material';
 
 interface QueryInputProps {
   onSubmit: (query: string, files?: File[], urls?: string[], entityIds?: string[]) => void;
-  disabled?: boolean;
+  /** Cancels the answer in flight. */
+  onStop?: () => void;
+  isStreaming?: boolean;
 }
 
-export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, disabled }) => {
+export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStreaming }) => {
+  const disabled = isStreaming;
   const [query, setQuery] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [urls, setUrls] = useState<string[]>([]);
@@ -42,7 +46,7 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, disabled }) =>
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -139,7 +143,7 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, disabled }) =>
           maxRows={4}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyDown}
           placeholder="Ask a question about your supply chain..."
           disabled={disabled}
           variant="outlined"
@@ -164,27 +168,46 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, disabled }) =>
             </span>
           </Tooltip>
 
-          <Tooltip title="Send query">
-            <span>
-              <IconButton
-                onClick={handleSubmit}
-                disabled={disabled || (!query.trim() && files.length === 0 && urls.length === 0 && entityIds.length === 0)}
-                color="primary"
-                sx={{
-                  bgcolor: 'primary.main',
-                  color: 'white',
-                  '&:hover': {
-                    bgcolor: 'primary.dark'
-                  },
-                  '&.Mui-disabled': {
-                    bgcolor: 'action.disabledBackground'
-                  }
-                }}
-              >
-                <SendIcon />
-              </IconButton>
-            </span>
-          </Tooltip>
+          {isStreaming ? (
+            <Tooltip title="Stop generating">
+              <span>
+                <IconButton
+                  onClick={onStop}
+                  aria-label="Stop generating"
+                  sx={{
+                    bgcolor: 'error.main',
+                    color: 'white',
+                    '&:hover': { bgcolor: 'error.dark' }
+                  }}
+                >
+                  <StopIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+          ) : (
+            <Tooltip title="Send query">
+              <span>
+                <IconButton
+                  onClick={handleSubmit}
+                  aria-label="Send query"
+                  disabled={!query.trim() && files.length === 0 && urls.length === 0 && entityIds.length === 0}
+                  color="primary"
+                  sx={{
+                    bgcolor: 'primary.main',
+                    color: 'white',
+                    '&:hover': {
+                      bgcolor: 'primary.dark'
+                    },
+                    '&.Mui-disabled': {
+                      bgcolor: 'action.disabledBackground'
+                    }
+                  }}
+                >
+                  <SendIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
         </Box>
       </Box>
 

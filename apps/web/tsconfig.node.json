@@ -1,0 +1,12 @@
+{
+  "extends": "@graphrag/config/tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declarationDir": "./node_modules/.tmp/types",
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts"]
+}
