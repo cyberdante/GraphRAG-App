@@ -24,6 +24,12 @@ Develop and test against graph stores running in containers, defined in
 - **openCypher** — Neo4j, over Bolt
 - **SPARQL** — to follow
 
+The same file also builds and runs the app and the service, so the whole stack
+comes up with one command and no toolchain installed. That is partly for
+anyone who wants to try it, and partly a check on ourselves: a stack that only
+starts on a machine with the right Node, Python and pnpm already present is one
+whose setup instructions quietly rot.
+
 A managed cluster is a deployment target these adapters address, not a
 prerequisite for working on them. Neptune speaks Bolt and openCypher, so the
 adapter that runs against the local store is the same adapter, reached by

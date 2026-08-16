@@ -1,0 +1,29 @@
+# Keeping the build context small is mostly about speed, but not only: an
+# .env.local copied into an image is a leaked key, and node_modules built on a
+# developer's machine is the classic source of "works here, not in the image".
+
+.git
+.github
+
+node_modules
+**/node_modules
+**/dist
+**/.vite
+
+# Python
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+
+# Secrets and local configuration. The image takes its configuration from the
+# environment at run time.
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Editor and OS noise
+.DS_Store
+.idea
+.vscode

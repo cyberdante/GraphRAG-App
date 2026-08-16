@@ -32,6 +32,78 @@ one changes, change the other.
 
 ## Getting started
 
+Two ways in. Docker needs nothing installed but Docker; the local setup is the
+one to use if you are going to change the code.
+
+### With Docker
+
+Brings up the whole stack — web app, service and graph store — and loads the
+sample graph on the way:
+
+```bash
+docker compose up --build
+```
+
+Then open **http://localhost:8080**.
+
+That is the entire setup. No Node, no Python, no pnpm, no keys.
+
+| Container | What it is | Where |
+| --- | --- | --- |
+| `ragstone-web` | The built app, served by nginx | http://localhost:8080 |
+| `ragstone-api` | The FastAPI service | on the compose network |
+| `ragstone-neo4j` | Neo4j, holding the sample graph | bolt://localhost:7687 |
+| `ragstone-seed` | Loads the sample graph, then exits | — |
+
+nginx puts the API on the same origin as the app under `/api`, which is what
+the Vite dev server does too — so the client code is identical either way, with
+no CORS and no API URL compiled into the bundle. The service is deliberately
+not published on a port of its own; uncomment the `ports` block under `api` in
+[compose.yaml](compose.yaml) to reach it directly and read the interactive docs
+at `/docs`.
+
+**Answering with a model.** With no key the service answers from the fixture
+generator, so the stack works end to end out of the box. To answer with a real
+model, put a key in a `.env` file beside `compose.yaml`:
+
+```bash
+# .env — gitignored
+ANTHROPIC_API_KEY=sk-ant-...
+# or
+RAGSTONE_LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+```
+
+Then `docker compose up -d --force-recreate api`. Keys are read from the
+environment at run time and never copied into an image — `.env` files are
+excluded by [.dockerignore](.dockerignore).
+
+**If a port is already taken.** 8080 is the most contended port on any machine
+that runs containers, so every published port can be overridden:
+
+```bash
+RAGSTONE_WEB_PORT=8081 docker compose up
+```
+
+`RAGSTONE_BOLT_PORT` and `RAGSTONE_NEO4J_HTTP_PORT` do the same for Neo4j.
+
+**Looking at the graph.** Neo4j Browser is at http://localhost:7474 —
+`neo4j` / `ragstone-dev`. `MATCH (n)-[r]->(m) RETURN n,r,m` shows everything
+the adapter is matching against. Those credentials guard a container of sample
+supply-chain data on a loopback port; a deployment supplies its own.
+
+**Stopping.**
+
+```bash
+docker compose down          # stop, keep the graph
+docker compose down -v       # stop and discard the graph too
+```
+
+Re-running `docker compose up` re-seeds, and the seeder is idempotent, so a
+discarded graph costs nothing but the time to load 15 nodes.
+
+### Locally, for development
+
 ```bash
 pnpm install          # JavaScript dependencies for the whole workspace
 pnpm api:setup        # one-time: builds the Python environment
@@ -47,23 +119,32 @@ development.
 To run the frontend alone with no Python at all, copy `apps/web/.env.example`
 to `apps/web/.env.local` and set `VITE_USE_MOCK=true`.
 
-### Running against a graph
-
-The service answers from the bundled fixture graph with nothing configured, so
-none of this is needed to get a working app. To run it against a real store:
+**Against a real graph.** The service answers from the bundled fixture graph
+with nothing configured, so this is optional. To develop against the store
+instead, run just the database and leave the apps on the host:
 
 ```bash
 docker compose up -d neo4j                # openCypher over Bolt, on 7687
-pnpm --filter @ragstone/api seed          # loads the sample graph, idempotent
+pnpm --filter @ragstone/api seed          # idempotent
 ```
 
-Then point the service at it — copy `apps/api/.env.example` to `.env.local`,
-uncomment the `NEO4J_*` block, and install the driver with
-`pip install -e ".[graph]"` inside `apps/api`. The backend appears in the
-picker once it is configured; a store that cannot answer is never offered.
+Then copy `apps/api/.env.example` to `.env.local`, uncomment the `NEO4J_*`
+block, and install the driver with `pip install -e ".[graph]"` inside
+`apps/api`. The backend appears in the picker once it is configured; a store
+that cannot answer is never offered.
 
-The same adapter addresses a managed Neptune cluster, which also speaks Bolt
-and openCypher — the URI changes and nothing else does.
+### Graph backends
+
+| Language | Status | Reached over |
+| --- | --- | --- |
+| openCypher | Working — Neo4j locally, Neptune when deployed | Bolt |
+| SPARQL | Planned | HTTP |
+| Gremlin | Planned | WebSocket |
+
+One `GraphStore` port, one adapter each. `tests/test_store_conformance.py` runs
+the same properties against every backend the machine can reach, including that
+they describe the same graph identically — so which store answers cannot
+quietly change the answer.
 
 ### Scripts
 
@@ -242,7 +323,9 @@ runs the same properties against each — including that they describe the same
 graph identically, so the backend cannot quietly change the answer. CI runs
 that suite against a real Neo4j service container.
 
-The SPARQL adapter is next; it reuses the vocabulary in `app/ontology.py`.
+The SPARQL adapter is next and reuses the vocabulary in `app/ontology.py`;
+Gremlin is planned after it. Both land as one more implementation of the same
+port, and the conformance suite is already written to hold them to it.
 
 Roadmap: https://claude.ai/code/artifact/ca1d6947-831f-492e-9d1f-f7903d4b3f07
 

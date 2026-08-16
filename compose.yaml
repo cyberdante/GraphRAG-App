@@ -1,30 +1,104 @@
-# Local graph stores for development.
+# The whole stack, and the pieces of it.
 #
-# The service talks to a graph through the `GraphStore` port, so the backend it
-# runs against is a deployment decision rather than a code one. These are the
-# stores a developer runs on their own machine; the same adapters address a
-# managed endpoint by pointing the URI elsewhere.
+#   docker compose up                 web, service and graph store
+#   docker compose up -d neo4j        just the store, for local development
 #
-#   docker compose up -d neo4j
-#   pnpm --filter @ragstone/api seed
+# The service talks to a graph through the `GraphStore` port, so which backend
+# answers is a deployment decision rather than a code one. These are the stores
+# a developer runs on their own machine; the same adapters address a managed
+# endpoint by pointing the URI elsewhere.
 #
 # Everything binds to 127.0.0.1 on purpose. These containers hold no secrets
-# worth having, but a database that listens on every interface is a habit worth
+# worth having, but a service that listens on every interface is a habit worth
 # not forming.
 
+name: ragstone
+
 services:
+  web:
+    build:
+      # The repository root: the app imports @ragstone/shared from the
+      # workspace, so a narrower context could not resolve it.
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: ragstone-web
+    ports:
+      # Overridable, because 8080 is the most contended port on any machine
+      # that runs containers: RAGSTONE_WEB_PORT=8081 docker compose up
+      - "127.0.0.1:${RAGSTONE_WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: ragstone-api
+    # Not published. The web container reaches it over the compose network, and
+    # nginx puts it on the same origin as the app. Uncomment to call it
+    # directly — the interactive docs are worth seeing.
+    # ports:
+    #   - "127.0.0.1:${RAGSTONE_API_PORT:-8000}:8000"
+    environment:
+      RAGSTONE_ENVIRONMENT: docker
+      # Service names resolve on the compose network, so no address is
+      # hardcoded anywhere.
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ragstone-dev
+      # Answers come from the fixture generator unless a key is present. Put
+      # one in a .env beside this file and the service answers with a model;
+      # leave it out and the stack still works end to end.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      RAGSTONE_LLM_PROVIDER: ${RAGSTONE_LLM_PROVIDER:-anthropic}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request;
+          urllib.request.urlopen('http://localhost:8000/health')"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  # Runs once, then exits. Loading the sample graph is a step someone would
+  # otherwise have to know to run, and a stack that comes up empty looks
+  # broken rather than unseeded.
+  seed:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: ragstone-seed
+    command: ["python", "scripts/seed_neo4j.py"]
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ragstone-dev
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    restart: "no"
+
   neo4j:
     image: neo4j:5.26-community
     container_name: ragstone-neo4j
     ports:
       # Bolt, which the driver speaks.
-      - "127.0.0.1:7687:7687"
+      - "127.0.0.1:${RAGSTONE_BOLT_PORT:-7687}:7687"
       # The browser UI at http://localhost:7474 — useful for seeing what the
       # adapter is actually matching against.
-      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:${RAGSTONE_NEO4J_HTTP_PORT:-7474}:7474"
     environment:
       # Local development credentials. They guard a container of sample
-      # supply-chain data on a loopback port; the deployment supplies its own.
+      # supply-chain data on a loopback port; a deployment supplies its own.
       NEO4J_AUTH: neo4j/ragstone-dev
       NEO4J_server_memory_heap_max__size: 512M
       NEO4J_server_memory_pagecache_size: 256M
@@ -32,12 +106,13 @@ services:
       - neo4j-data:/data
     healthcheck:
       # The port opens before the database will answer a query, so the check
-      # runs a real one. Compose dependents wait on this rather than on a port.
+      # runs a real one. Dependents wait on this rather than on a port.
       test: ["CMD-SHELL", "cypher-shell -u neo4j -p ragstone-dev 'RETURN 1' || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 20s
+    restart: unless-stopped
 
 volumes:
   neo4j-data:
