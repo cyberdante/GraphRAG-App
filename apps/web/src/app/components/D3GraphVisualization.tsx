@@ -18,7 +18,7 @@ import {
   CenterFocusStrong as CenterFocusStrongIcon,
 } from '@mui/icons-material';
 import * as d3 from 'd3';
-import type { Tenant } from '@graphrag/shared';
+import type { Tenant } from '@ragstone/shared';
 import { graphPalette } from '@/theme';
 import { GraphData, GraphNode, GraphEdge } from '@/types';
 

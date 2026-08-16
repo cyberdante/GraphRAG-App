@@ -74,9 +74,9 @@ describe('storage', () => {
     });
 
     it('lists the stored keys', () => {
-      writeString('graphrag-conversation-1', 'a');
-      writeString('graphrag-conversation-2', 'b');
-      expect(keys().filter((k) => k.startsWith('graphrag-conversation-'))).toHaveLength(2);
+      writeString('ragstone-conversation-1', 'a');
+      writeString('ragstone-conversation-2', 'b');
+      expect(keys().filter((k) => k.startsWith('ragstone-conversation-'))).toHaveLength(2);
     });
 
     it('returns an empty list when storage throws', () => {

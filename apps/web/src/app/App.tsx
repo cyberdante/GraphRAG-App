@@ -19,10 +19,10 @@ import type { GraphData, Message, QueryHistoryItem, QueryRequest } from '@/types
 
 const api = createClient();
 
-const CURRENT_CONVERSATION_KEY = 'graphrag-current-conversation-id';
-const HISTORY_KEY = 'graphrag-query-history';
-const conversationKey = (id: string) => `graphrag-conversation-${id}`;
-const graphKey = (id: string) => `graphrag-graph-${id}`;
+const CURRENT_CONVERSATION_KEY = 'ragstone-current-conversation-id';
+const HISTORY_KEY = 'ragstone-query-history';
+const conversationKey = (id: string) => `ragstone-conversation-${id}`;
+const graphKey = (id: string) => `ragstone-graph-${id}`;
 
 const EMPTY_GRAPH: GraphData = { nodes: [], links: [] };
 
@@ -33,7 +33,7 @@ const newId = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
 function AppContent() {
-  const [darkMode, setDarkMode] = useState(() => readString('graphrag-theme') === 'dark');
+  const [darkMode, setDarkMode] = useState(() => readString('ragstone-theme') === 'dark');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -91,7 +91,7 @@ function AppContent() {
   }, [queryHistory]);
 
   useEffect(() => {
-    writeString('graphrag-theme', darkMode ? 'dark' : 'light');
+    writeString('ragstone-theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
   // The browser tab is the most-seen piece of branding, and index.html cannot

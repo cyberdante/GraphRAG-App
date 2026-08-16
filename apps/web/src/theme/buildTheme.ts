@@ -8,7 +8,7 @@
  */
 
 import { createTheme, type Theme, type ThemeOptions } from '@mui/material';
-import type { Tenant } from '@graphrag/shared';
+import type { Tenant } from '@ragstone/shared';
 import { readableOn } from './contrast';
 
 /** Every Material elevation flattened; borders carry separation instead. */

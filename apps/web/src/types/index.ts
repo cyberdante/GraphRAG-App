@@ -22,4 +22,4 @@ export type {
   StatusPayload,
   StreamEvent,
   UsagePayload,
-} from '@graphrag/shared';
+} from '@ragstone/shared';

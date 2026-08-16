@@ -1,5 +1,5 @@
 {
-  "extends": "@graphrag/config/tsconfig.base.json",
+  "extends": "@ragstone/config/tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
     "allowImportingTsExtensions": true,

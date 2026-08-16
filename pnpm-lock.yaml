@@ -21,7 +21,7 @@ importers:
       '@emotion/styled':
         specifier: 11.14.1
         version: 11.14.1(@emotion/react@11.14.0(@types/react@18.3.31)(react@18.3.1))(@types/react@18.3.31)(react@18.3.1)
-      '@graphrag/shared':
+      '@ragstone/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@mui/icons-material':
@@ -55,7 +55,7 @@ importers:
         specifier: ^4.0.0
         version: 4.0.1
     devDependencies:
-      '@graphrag/config':
+      '@ragstone/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@testing-library/jest-dom':
@@ -99,7 +99,7 @@ importers:
 
   packages/shared:
     devDependencies:
-      '@graphrag/config':
+      '@ragstone/config':
         specifier: workspace:*
         version: link:../config
       typescript:

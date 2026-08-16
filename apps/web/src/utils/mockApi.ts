@@ -1,4 +1,4 @@
-import { graphToJsonLD } from '@graphrag/shared';
+import { graphToJsonLD } from '@ragstone/shared';
 import type { GraphRagClient, QueryRequest, StreamEvent } from '@/types';
 import { generateMockResponse, supplyChainGraphData } from './mockData';
 

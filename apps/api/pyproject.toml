@@ -1,5 +1,5 @@
 [project]
-name = "graphrag-api"
+name = "ragstone-api"
 version = "0.1.0"
 description = "GraphRAG service: streams answers from Bedrock over a Neptune knowledge graph."
 requires-python = ">=3.11"

@@ -12,7 +12,7 @@ import {
   ListItemIcon,
   ListItemText
 } from '@mui/material';
-import type { TenantBrand } from '@graphrag/shared';
+import type { TenantBrand } from '@ragstone/shared';
 import {
   Menu as MenuIcon,
   Brightness4 as DarkModeIcon,

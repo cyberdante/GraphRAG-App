@@ -13,7 +13,7 @@
 import type { GraphData } from './index';
 
 /** Namespace for classes and properties this project defines itself. */
-export const VOCAB = 'https://graphrag.dev/ontology/supply-chain#';
+export const VOCAB = 'https://ragstone.dev/ontology/supply-chain#';
 
 export const SCHEMA = 'https://schema.org/';
 

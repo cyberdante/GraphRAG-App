@@ -19,7 +19,7 @@ from typing import Any
 from .models import GraphData
 
 #: Namespace for classes and properties this project defines itself.
-VOCAB = "https://graphrag.dev/ontology/supply-chain#"
+VOCAB = "https://ragstone.dev/ontology/supply-chain#"
 
 SCHEMA = "https://schema.org/"
 

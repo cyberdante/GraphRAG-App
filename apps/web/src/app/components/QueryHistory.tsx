@@ -37,7 +37,7 @@ interface ConversationSummary {
   timestamp: Date;
 }
 
-const CONVERSATION_PREFIX = 'graphrag-conversation-';
+const CONVERSATION_PREFIX = 'ragstone-conversation-';
 
 /** Reads the stored conversations back into a list for the drawer. */
 function loadConversations(): ConversationSummary[] {

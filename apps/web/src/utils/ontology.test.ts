@@ -1,4 +1,4 @@
-import { CLASSES, PROPERTIES, VOCAB, graphToJsonLD, jsonLdContext } from '@graphrag/shared';
+import { CLASSES, PROPERTIES, VOCAB, graphToJsonLD, jsonLdContext } from '@ragstone/shared';
 import { describe, expect, it } from 'vitest';
 import { supplyChainGraphData } from './mockData';
 

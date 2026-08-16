@@ -10,7 +10,7 @@
  * "themeable" in every respect except the one a client asks about.
  */
 
-import type { Tenant } from '@graphrag/shared';
+import type { Tenant } from '@ragstone/shared';
 
 /** Semantic colours are shared: meaning should survive rebranding. */
 const SEMANTIC = {

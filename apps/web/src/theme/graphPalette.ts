@@ -11,7 +11,7 @@
  */
 
 import { alpha, type Theme } from '@mui/material';
-import type { Tenant } from '@graphrag/shared';
+import type { Tenant } from '@ragstone/shared';
 
 export interface GraphPalette {
   canvas: string;

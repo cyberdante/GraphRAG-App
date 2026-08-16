@@ -20,7 +20,7 @@ import {
 } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { TenantBrand, TenantCopy } from '@graphrag/shared';
+import type { TenantBrand, TenantCopy } from '@ragstone/shared';
 import type { Message } from '@/types';
 
 interface StreamingResponseProps {

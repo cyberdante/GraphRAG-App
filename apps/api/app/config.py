@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Service configuration. Everything overridable from the environment."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="GRAPHRAG_", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="RAGSTONE_", extra="ignore")
 
     environment: str = "development"
 

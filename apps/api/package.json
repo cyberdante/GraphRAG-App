@@ -1,5 +1,5 @@
 {
-  "name": "@graphrag/api",
+  "name": "@ragstone/api",
   "version": "0.1.0",
   "private": true,
   "description": "pnpm wrapper around the Python service so `pnpm dev` starts both apps.",

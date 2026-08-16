@@ -1,18 +1,22 @@
-# GraphRAG
+# Ragstone
 
-[![CI](https://github.com/cyberdante/GraphRAG-App/actions/workflows/ci.yml/badge.svg)](https://github.com/cyberdante/GraphRAG-App/actions/workflows/ci.yml)
+[![CI](https://github.com/cyberdante/Ragstone/actions/workflows/ci.yml/badge.svg)](https://github.com/cyberdante/Ragstone/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A white-label GraphRAG console. You ask a question in natural language; the
 service retrieves a subgraph from Neptune, answers with Bedrock, and the app
 streams the answer and draws the graph it came from side by side.
 
+The product carries no name of its own where a user can see it — every visible
+name, colour, shape and phrase belongs to a tenant. "Ragstone" is what the repo
+is called, not what the client sees.
+
 Design decisions are recorded in [docs/adr](docs/adr/).
 
 ## Layout
 
 ```
-graphrag/
+ragstone/
 ├─ apps/
 │  ├─ web/            React 18 · MUI 7 · Vite 6 · D3 7
 │  └─ api/            FastAPI · Python 3.11+
@@ -149,7 +153,7 @@ directly.
 
 The service currently answers from fixtures in `apps/api/app/fixtures.py` — the
 supply-chain graph, three canned answers, and citations. Bedrock and Neptune
-land in Sprint 2. Only `stream_answer` changes when they do; the frames stay
+land in Sprint 3. Only `stream_answer` changes when they do; the frames stay
 identical, so the frontend needs no work.
 
 Roadmap: https://claude.ai/code/artifact/ca1d6947-831f-492e-9d1f-f7903d4b3f07

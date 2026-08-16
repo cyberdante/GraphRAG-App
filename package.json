@@ -1,5 +1,5 @@
 {
-  "name": "graphrag",
+  "name": "ragstone",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,16 +9,16 @@
   },
   "scripts": {
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
-    "dev:web": "pnpm --filter @graphrag/web dev",
-    "dev:api": "pnpm --filter @graphrag/api dev",
-    "build": "pnpm --filter @graphrag/web build",
-    "preview": "pnpm --filter @graphrag/web preview",
+    "dev:web": "pnpm --filter @ragstone/web dev",
+    "dev:api": "pnpm --filter @ragstone/api dev",
+    "build": "pnpm --filter @ragstone/web build",
+    "preview": "pnpm --filter @ragstone/web preview",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "test:web": "pnpm --filter @graphrag/web test",
-    "test:api": "pnpm --filter @graphrag/api test",
-    "lint": "pnpm --filter @graphrag/api lint",
-    "api:setup": "pnpm --filter @graphrag/api setup"
+    "test:web": "pnpm --filter @ragstone/web test",
+    "test:api": "pnpm --filter @ragstone/api test",
+    "lint": "pnpm --filter @ragstone/api lint",
+    "api:setup": "pnpm --filter @ragstone/api setup"
   },
   "pnpm": {
     "overrides": {
