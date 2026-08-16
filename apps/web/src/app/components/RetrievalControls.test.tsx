@@ -131,3 +131,32 @@ describe('RetrievalControls', () => {
     expect(onChange).toHaveBeenCalledWith(DEFAULT_SETTINGS);
   });
 });
+
+describe('the panel fits on screen', () => {
+  it('keeps the heading and the way out outside the scrolling region', () => {
+    // Reported from a screenshot: the heading and close button were hidden
+    // behind the app bar, which declares `zIndex.drawer + 1` so that a docked
+    // drawer sits under it. This panel is modal and has to sit over it.
+    //
+    // jsdom does no layout, so this asserts the structure that makes the fix
+    // hold rather than the pixels — the controls scroll inside their own
+    // container, and the way out is not in it. Item 77 (visual regression) is
+    // what would have caught the original.
+    renderControls();
+
+    const scroller = screen.getByTestId('retrieval-scroll');
+    const close = screen.getByLabelText('Close retrieval settings');
+
+    expect(scroller).not.toContainElement(close);
+    expect(scroller).toContainElement(screen.getByLabelText('Hops'));
+  });
+
+  it('still shows every control', () => {
+    renderControls();
+
+    expect(screen.getByRole('heading', { name: 'Retrieval' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Evidence to the model')).toBeInTheDocument();
+    expect(screen.getByLabelText('Nodes in the picture')).toBeInTheDocument();
+    expect(screen.getByLabelText('Hops')).toBeInTheDocument();
+  });
+});

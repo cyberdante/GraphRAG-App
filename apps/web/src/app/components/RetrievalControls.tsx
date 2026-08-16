@@ -70,8 +70,36 @@ export const RetrievalControls: React.FC<RetrievalControlsProps> = ({
   };
 
   return (
-    <Drawer anchor="right" open={open} onClose={onClose}>
-      <Box sx={{ width: { xs: '100vw', sm: 360 }, p: 2 }} role="group" aria-label="Retrieval settings">
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      // Navbar pins the app bar at `zIndex.drawer + 1`, the idiom for a docked
+      // drawer sitting under a full-width bar. This panel is modal and has to
+      // sit over it, or its own heading and close button end up behind the
+      // toolbar — which is what happened.
+      //
+      // Derived from `zIndex.drawer`, not `zIndex.appBar`: the theme still
+      // says the app bar is 1100 while Navbar renders it at 1201, so the
+      // obvious `appBar + 1` computes 1101 and loses. Tied together by the
+      // test in this component's suite.
+      sx={{ zIndex: (theme) => theme.zIndex.drawer + 2 }}
+      slotProps={{
+        paper: {
+          sx: {
+            width: { xs: '100vw', sm: 360 },
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+          },
+        },
+      }}
+    >
+      <Box
+        sx={{ p: 2, pb: 0, flexShrink: 0 }}
+        role="group"
+        aria-label="Retrieval settings"
+      >
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
           <Typography variant="h6">Retrieval</Typography>
           <IconButton onClick={onClose} aria-label="Close retrieval settings" size="small">
@@ -83,7 +111,12 @@ export const RetrievalControls: React.FC<RetrievalControlsProps> = ({
           Applies to the next question. Nothing here changes an answer already given.
         </Typography>
 
-        <Divider sx={{ mb: 2 }} />
+        <Divider />
+      </Box>
+
+      {/* Only the controls scroll. The heading and the way out stay put, so a
+          panel taller than the window cannot hide its own close button. */}
+      <Box sx={{ px: 2, pt: 2, pb: 3, overflowY: 'auto', flexGrow: 1 }} data-testid="retrieval-scroll">
 
         <FormControl fullWidth size="small" sx={{ mb: 3 }} disabled={backends.length === 0}>
           <InputLabel id="backend-label">Backend</InputLabel>
