@@ -30,6 +30,16 @@ export interface ParsedTenant {
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
+// The variant vocabulary, repeated here as values so a document can be checked
+// against it at runtime — a TypeScript union alone proves nothing about JSON
+// that arrived over the network.
+const SURFACES = ['elevated', 'outlined', 'flat'] as const;
+const BUTTONS = ['contained', 'outlined', 'text'] as const;
+const INPUTS = ['outlined', 'filled', 'standard'] as const;
+const CHIPS = ['filled', 'outlined'] as const;
+const CONTROL_SIZES = ['medium', 'small'] as const;
+const INTERACTIONS = ['ripple', 'flat'] as const;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -89,6 +99,15 @@ function reader(source: Record<string, unknown>, issues: TenantIssue[], prefix: 
       return value;
     },
 
+    oneOf<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+      const value = source[key];
+      if (typeof value === 'string' && (allowed as readonly string[]).includes(value)) {
+        return value as T;
+      }
+      if (value !== undefined) note(key, `expected one of ${allowed.join(', ')}`);
+      return fallback;
+    },
+
     strings(key: string, fallback: string[]): string[] {
       const value = source[key];
       if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
@@ -132,6 +151,8 @@ export function parseTenant(input: unknown, base: Tenant): ParsedTenant {
   const density = reader(densitySource, issues, 'density.');
   const typeSource = section(input, 'typography');
   const type = reader(typeSource, issues, 'typography.');
+  const variantSource = section(input, 'variants');
+  const variant = reader(variantSource, issues, 'variants.');
   const copySource = section(input, 'copy');
   const copy = reader(copySource, issues, 'copy.');
   const graphSource = section(input, 'graph');
@@ -199,7 +220,14 @@ export function parseTenant(input: unknown, base: Tenant): ParsedTenant {
     shape: {
       radius: shape.number('radius', base.shape.radius, 0, 999),
       borderWidth: shape.number('borderWidth', base.shape.borderWidth, 0, 8),
-      flat: shape.boolean('flat', base.shape.flat),
+    },
+    variants: {
+      surface: variant.oneOf('surface', SURFACES, base.variants.surface),
+      button: variant.oneOf('button', BUTTONS, base.variants.button),
+      input: variant.oneOf('input', INPUTS, base.variants.input),
+      chip: variant.oneOf('chip', CHIPS, base.variants.chip),
+      controlSize: variant.oneOf('controlSize', CONTROL_SIZES, base.variants.controlSize),
+      interaction: variant.oneOf('interaction', INTERACTIONS, base.variants.interaction),
     },
     density: {
       spacing: density.number('spacing', base.density.spacing, 2, 24),

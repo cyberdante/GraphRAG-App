@@ -71,7 +71,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <AppBar 
       position="fixed" 
-      elevation={1}
       sx={{ 
         zIndex: (theme) => theme.zIndex.drawer + 1,
         bgcolor: darkMode ? 'background.paper' : 'background.default',

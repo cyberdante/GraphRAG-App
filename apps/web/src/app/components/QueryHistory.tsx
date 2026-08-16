@@ -104,7 +104,7 @@ export const QueryHistory: React.FC<QueryHistoryProps> = ({
           <HistoryIcon color="primary" />
           <Typography variant="h6">Conversation History</Typography>
         </Box>
-        <IconButton onClick={onClose} size="small" aria-label="Close history">
+        <IconButton onClick={onClose} aria-label="Close history">
           <CloseIcon />
         </IconButton>
       </Box>
@@ -145,10 +145,8 @@ export const QueryHistory: React.FC<QueryHistoryProps> = ({
                         label={`${conversation.queryCount} ${
                           conversation.queryCount === 1 ? 'query' : 'queries'
                         }`}
-                        size="small"
-                        variant="outlined"
                       />
-                      {isCurrent && <Chip label="Current" size="small" color="primary" />}
+                      {isCurrent && <Chip label="Current" color="primary" />}
                     </Stack>
                     <Typography
                       variant="body2"
@@ -174,7 +172,6 @@ export const QueryHistory: React.FC<QueryHistoryProps> = ({
                           </Typography>
                         )}
                         <IconButton
-                          size="small"
                           color={isArmed ? 'error' : 'default'}
                           aria-label={`Delete conversation: ${conversation.firstQuery}`}
                           onClick={(event) => confirmDelete(conversation.id, event)}

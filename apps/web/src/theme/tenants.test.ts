@@ -80,10 +80,26 @@ describe.each(tenants)('tenant: %s', (_id, tenant) => {
     expect(theme.typography.fontFamily).toBe(tenant.typography.fontFamily);
   });
 
-  it('flattens elevation only when it asks to', () => {
+  it('draws shadows only for an elevated surface treatment', () => {
     const theme = buildTheme(tenant, false);
     // shadows[1] is the first real elevation; index 0 is 'none' for everyone.
-    expect(theme.shadows[1] === 'none').toBe(tenant.shape.flat);
+    const hasShadows = theme.shadows[1] !== 'none';
+    expect(hasShadows).toBe(tenant.variants.surface === 'elevated');
+  });
+
+  it('applies its declared component variants as defaults', () => {
+    const theme = buildTheme(tenant, false);
+    const defaults = (name: string) =>
+      (theme.components?.[name as 'MuiButton'] as { defaultProps?: Record<string, unknown> })
+        ?.defaultProps ?? {};
+
+    expect(defaults('MuiButton')['variant']).toBe(tenant.variants.button);
+    expect(defaults('MuiTextField')['variant']).toBe(tenant.variants.input);
+    expect(defaults('MuiChip')['variant']).toBe(tenant.variants.chip);
+    expect(defaults('MuiButton')['size']).toBe(tenant.variants.controlSize);
+    expect(defaults('MuiButtonBase')['disableRipple']).toBe(
+      tenant.variants.interaction === 'flat',
+    );
   });
 });
 
@@ -99,11 +115,44 @@ describe('the tenants are actually different', () => {
     expect(families.size).toBe(tenants.length);
   });
 
+  it('differ in how components are built, not only how they are painted', () => {
+    // The step item 75 is about: three distinct design languages, not three
+    // colourways of one.
+    const surfaces = new Set(tenants.map(([, t]) => t.variants.surface));
+    const buttons = new Set(tenants.map(([, t]) => t.variants.button));
+    const inputs = new Set(tenants.map(([, t]) => t.variants.input));
+
+    expect(surfaces.size).toBe(tenants.length);
+    expect(buttons.size).toBe(tenants.length);
+    expect(inputs.size).toBe(tenants.length);
+  });
+
   it('give the graph a different palette each', () => {
     const canvases = new Set(
       tenants.map(([, t]) => graphPalette(buildTheme(t, false), t).canvas),
     );
     expect(canvases.size).toBe(tenants.length);
+  });
+});
+
+describe('no component overrides a tenant decision', () => {
+  // Same failure as the hardcoded colours, one level up: a component that
+  // restates variant="outlined" or elevation={2} pins every tenant to that
+  // choice, and the declared variant silently does nothing.
+  const componentsDir2 = join(__dirname, '..', 'app', 'components');
+  const OVERRIDE = /variant="(outlined|contained|text|filled|standard)"|elevation=\{\d+\}/;
+
+  const sources2 = readdirSync(componentsDir2)
+    .filter((file) => file.endsWith('.tsx') && !file.includes('.test.'))
+    .map((file) => [file, readFileSync(join(componentsDir2, file), 'utf8')] as const);
+
+  it.each(sources2)('%s leaves component variants to the theme', (_file, source) => {
+    const offenders = source
+      .split('\n')
+      .map((line, index) => [index + 1, line] as const)
+      .filter(([, line]) => OVERRIDE.test(line));
+
+    expect(offenders).toEqual([]);
   });
 });
 

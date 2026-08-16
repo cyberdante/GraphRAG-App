@@ -16,8 +16,15 @@
   },
   "shape": {
     "radius": 0,
-    "borderWidth": 2,
-    "flat": true
+    "borderWidth": 2
+  },
+  "variants": {
+    "surface": "outlined",
+    "button": "outlined",
+    "input": "standard",
+    "chip": "outlined",
+    "controlSize": "small",
+    "interaction": "flat"
   },
   "density": {
     "spacing": 6,

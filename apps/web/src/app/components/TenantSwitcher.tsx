@@ -56,7 +56,6 @@ export const TenantSwitcher: React.FC<TenantSwitcherProps> = ({
           <Button
             onClick={(event) => setAnchorEl(event.currentTarget)}
             disabled={busy}
-            size="small"
             color="inherit"
             aria-haspopup="menu"
             aria-expanded={Boolean(anchorEl)}

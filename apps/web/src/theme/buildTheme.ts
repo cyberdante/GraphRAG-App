@@ -8,10 +8,10 @@
  */
 
 import { createTheme, type Theme, type ThemeOptions } from '@mui/material';
-import type { Tenant } from '@ragstone/shared';
+import type { Tenant, TenantVariants } from '@ragstone/shared';
 import { readableOn } from './contrast';
 
-/** Every Material elevation flattened; borders carry separation instead. */
+/** Every Material elevation flattened; borders or nothing carry separation. */
 const NO_SHADOWS = Array(25).fill('none') as ThemeOptions['shadows'];
 
 /** Dark-mode surfaces derived from the tenant rather than a second palette. */
@@ -19,8 +19,11 @@ const DARK_BACKGROUND = '#0B1116';
 const DARK_SURFACE = '#141D24';
 const DARK_DIVIDER = '#233039';
 
+/** Whether this surface treatment draws its own shadows. */
+const isElevated = (variants: TenantVariants) => variants.surface === 'elevated';
+
 export function buildTheme(tenant: Tenant, darkMode: boolean): Theme {
-  const { palette, shape, density, typography } = tenant;
+  const { palette, shape, density, typography, variants } = tenant;
 
   const background = darkMode ? DARK_BACKGROUND : palette.background;
   const surface = darkMode ? DARK_SURFACE : palette.surface;
@@ -28,9 +31,10 @@ export function buildTheme(tenant: Tenant, darkMode: boolean): Theme {
 
   const scale = (rem: number) => `${(rem * density.fontScale).toFixed(3)}rem`;
 
-  const outlined = shape.flat
-    ? { border: `${shape.borderWidth}px solid ${divider}` }
-    : {};
+  // 'outlined' draws a border; 'flat' draws nothing at all and relies on the
+  // surface colour differing from the page.
+  const surfaceBorder =
+    variants.surface === 'outlined' ? { border: `${shape.borderWidth}px solid ${divider}` } : {};
 
   return createTheme({
     palette: {
@@ -48,7 +52,7 @@ export function buildTheme(tenant: Tenant, darkMode: boolean): Theme {
 
     shape: { borderRadius: shape.radius },
     spacing: density.spacing,
-    ...(shape.flat ? { shadows: NO_SHADOWS } : {}),
+    ...(isElevated(variants) ? {} : { shadows: NO_SHADOWS }),
 
     typography: {
       fontFamily: typography.fontFamily,
@@ -70,22 +74,35 @@ export function buildTheme(tenant: Tenant, darkMode: boolean): Theme {
     },
 
     components: {
-      // The ripple is Material's most recognisable behaviour, so whether it
-      // runs is a tenant decision like any other.
-      ...(shape.flat ? { MuiButtonBase: { defaultProps: { disableRipple: true } } } : {}),
-
-      MuiPaper: {
-        ...(shape.flat ? { defaultProps: { elevation: 0 } } : {}),
-        styleOverrides: { root: outlined },
+      MuiButtonBase: {
+        defaultProps: { disableRipple: variants.interaction === 'flat' },
       },
-      MuiAppBar: {
-        ...(shape.flat ? { defaultProps: { elevation: 0 } } : {}),
-        styleOverrides: {
-          root: shape.flat ? { borderBottom: `${shape.borderWidth}px solid ${divider}` } : {},
-        },
+      MuiButton: {
+        defaultProps: { variant: variants.button, size: variants.controlSize },
+      },
+      MuiTextField: {
+        defaultProps: { variant: variants.input, size: variants.controlSize },
       },
       MuiChip: {
+        defaultProps: { variant: variants.chip, size: variants.controlSize },
         styleOverrides: { root: { borderRadius: shape.radius, fontWeight: 600 } },
+      },
+      MuiIconButton: {
+        defaultProps: { size: variants.controlSize },
+        // A square tenant should not keep circular buttons; a round one should.
+        styleOverrides: { root: { borderRadius: shape.radius === 0 ? 0 : undefined } },
+      },
+      MuiPaper: {
+        ...(isElevated(variants) ? {} : { defaultProps: { elevation: 0 } }),
+        styleOverrides: { root: surfaceBorder },
+      },
+      MuiAppBar: {
+        ...(isElevated(variants) ? {} : { defaultProps: { elevation: 0 } }),
+        styleOverrides: {
+          root: isElevated(variants)
+            ? {}
+            : { borderBottom: `${shape.borderWidth}px solid ${divider}` },
+        },
       },
       MuiOutlinedInput: {
         styleOverrides: {
@@ -93,9 +110,8 @@ export function buildTheme(tenant: Tenant, darkMode: boolean): Theme {
           notchedOutline: { borderWidth: shape.borderWidth },
         },
       },
-      MuiIconButton: {
-        // A square tenant should not keep circular buttons; a round one should.
-        styleOverrides: { root: { borderRadius: shape.radius === 0 ? 0 : undefined } },
+      MuiFilledInput: {
+        styleOverrides: { root: { borderRadius: shape.radius } },
       },
     },
   });

@@ -107,7 +107,7 @@ const EmptyState: React.FC<{ brand: TenantBrand; copy: TenantCopy }> = ({ brand,
       sx={{ mt: 2, flexWrap: 'wrap', justifyContent: 'center', gap: 1 }}
     >
       {copy.starters.map((starter) => (
-        <Chip key={starter} label={starter} size="small" variant="outlined" />
+        <Chip key={starter} label={starter} />
       ))}
     </Stack>
   </Box>
@@ -180,7 +180,6 @@ const MessageBubble: React.FC<{ message: Message; onRetry?: () => void }> = ({
   return (
     <Box sx={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
       <Paper
-        elevation={1}
         sx={{
           maxWidth: '85%',
           minWidth: hasFailed ? '60%' : undefined,
@@ -211,7 +210,7 @@ const MessageBubble: React.FC<{ message: Message; onRetry?: () => void }> = ({
             sx={{ mt: message.content ? 2 : 0 }}
             action={
               onRetry && (
-                <Button color="inherit" size="small" onClick={onRetry}>
+                <Button color="inherit" onClick={onRetry}>
                   Try again
                 </Button>
               )
@@ -253,7 +252,6 @@ const MessageBubble: React.FC<{ message: Message; onRetry?: () => void }> = ({
               {message.citations.map((citation) => (
                 <Card
                   key={citation.id}
-                  variant="outlined"
                   sx={{ bgcolor: 'background.default', borderRadius: 1 }}
                 >
                   <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
@@ -266,7 +264,6 @@ const MessageBubble: React.FC<{ message: Message; onRetry?: () => void }> = ({
                     {citation.confidence !== undefined && (
                       <Chip
                         label={`${Math.round(citation.confidence * 100)}% confidence`}
-                        size="small"
                         sx={{ mt: 0.5, height: 20, fontSize: '0.7rem' }}
                       />
                     )}

@@ -29,12 +29,32 @@ export interface TenantShape {
   radius: number;
   /** Border width for outlined surfaces. Thicker reads more industrial. */
   borderWidth: number;
-  /**
-   * Replace elevation shadows with borders. Material's stacked shadows are one
-   * of its strongest tells, so this is a per-tenant variant in the sense of
-   * roadmap item 75, not a cosmetic toggle.
-   */
-  flat: boolean;
+}
+
+/**
+ * How components are built, as opposed to what colour they are.
+ *
+ * This is the step from "our colours" to "our design language": a client can
+ * say their buttons are outlined, their inputs underlined and their surfaces
+ * flat, and get exactly that.
+ *
+ * Deliberately a closed vocabulary rather than free-form style overrides.
+ * Enumerated choices can be validated, tested and rendered predictably, and
+ * they do not weld the tenant contract to one component library's internals.
+ * Letting a tenant post arbitrary CSS is a different and much larger decision
+ * — see the L4 discussion in the roadmap — not an extension of this one.
+ */
+export interface TenantVariants {
+  /** How panels separate from the page. Shadows are a strong Material tell. */
+  surface: 'elevated' | 'outlined' | 'flat';
+  button: 'contained' | 'outlined' | 'text';
+  /** 'standard' is underlined; the notched outline is distinctly Material. */
+  input: 'outlined' | 'filled' | 'standard';
+  chip: 'filled' | 'outlined';
+  /** Control sizing, separate from the spacing scale in TenantDensity. */
+  controlSize: 'medium' | 'small';
+  /** The ripple is Material's most recognisable behaviour. */
+  interaction: 'ripple' | 'flat';
 }
 
 /**
@@ -105,6 +125,7 @@ export interface Tenant {
   shape: TenantShape;
   density: TenantDensity;
   typography: TenantTypography;
+  variants: TenantVariants;
   copy: TenantCopy;
   graph: TenantGraph;
 }

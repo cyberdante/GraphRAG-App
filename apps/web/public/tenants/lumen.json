@@ -16,8 +16,15 @@
   },
   "shape": {
     "radius": 18,
-    "borderWidth": 1,
-    "flat": true
+    "borderWidth": 1
+  },
+  "variants": {
+    "surface": "flat",
+    "button": "text",
+    "input": "filled",
+    "chip": "filled",
+    "controlSize": "medium",
+    "interaction": "flat"
   },
   "density": {
     "spacing": 10,

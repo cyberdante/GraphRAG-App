@@ -83,6 +83,14 @@ bundled tenants differ in corner radius, spacing base, type family, node
 colours and wording, because a white-label claim tested against near-identical
 themes proves nothing.
 
+A tenant declares how components are *built*, not only what colour they are:
+surfaces elevated, outlined or flat; buttons contained, outlined or text;
+inputs outlined, filled or underlined; plus chip style, control size and
+whether the ripple runs. The vocabulary is closed on purpose — enumerated
+choices can be validated and tested, and they do not weld the contract to one
+component library's internals. Arbitrary tenant CSS is a separate, larger
+decision, not an extension of this one.
+
 A fetched document is not trusted. Every field falls back independently and
 what was repaired is reported, so one mistyped hex value cannot stop the app
 rendering — and a palette that cannot carry readable text is reported rather

@@ -332,7 +332,6 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
 
   return (
     <Paper
-      elevation={2}
       sx={{
         height: '100%',
         borderRadius: 2,
@@ -366,7 +365,6 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
                 <Switch
                   checked={showLabels}
                   onChange={(e) => setShowLabels(e.target.checked)}
-                  size="small"
                 />
               }
               label="Labels"
@@ -374,21 +372,21 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
             />
             <Tooltip title="Zoom In">
               <span>
-                <IconButton size="small" onClick={handleZoomIn}>
+                <IconButton onClick={handleZoomIn}>
                   <ZoomInIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
             <Tooltip title="Zoom Out">
               <span>
-                <IconButton size="small" onClick={handleZoomOut}>
+                <IconButton onClick={handleZoomOut}>
                   <ZoomOutIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
             <Tooltip title="Center View">
               <span>
-                <IconButton size="small" onClick={handleCenter}>
+                <IconButton onClick={handleCenter}>
                   <CenterFocusStrongIcon fontSize="small" />
                 </IconButton>
               </span>
@@ -400,15 +398,11 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
         <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
           <Chip
             label={`${data.nodes.length} Nodes`}
-            size="small"
             color="primary"
-            variant="outlined"
           />
           <Chip
             label={`${data.links.length} Relationships`}
-            size="small"
             color="secondary"
-            variant="outlined"
           />
         </Stack>
       </Box>
@@ -433,7 +427,6 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
       {/* Selected Node Info */}
       {selectedNode && (
         <Paper
-          elevation={4}
           sx={{
             position: 'absolute',
             bottom: 16,
@@ -448,8 +441,8 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
             {selectedNode.label}
           </Typography>
           <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-            <Chip label={selectedNode.type} size="small" color="primary" />
-            <Chip label={`ID: ${selectedNode.id}`} size="small" variant="outlined" />
+            <Chip label={selectedNode.type} color="primary" />
+            <Chip label={`ID: ${selectedNode.id}`} />
           </Stack>
           <Typography variant="caption" display="block" sx={{ mt: 1 }} color="text.secondary">
             Click to select • Drag nodes to move • Scroll to zoom • Pan to navigate

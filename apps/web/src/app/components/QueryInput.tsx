@@ -90,7 +90,6 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
 
   return (
     <Paper
-      elevation={2}
       sx={{
         p: 2,
         borderRadius: 2,
@@ -105,10 +104,8 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
               key={`file-${index}`}
               label={file.name}
               onDelete={() => removeFile(index)}
-              size="small"
               icon={<AttachFileIcon />}
               color="primary"
-              variant="outlined"
             />
           ))}
           {urls.map((url, index) => (
@@ -116,10 +113,8 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
               key={`url-${index}`}
               label={url}
               onDelete={() => removeUrl(index)}
-              size="small"
               icon={<LinkIcon />}
               color="secondary"
-              variant="outlined"
             />
           ))}
           {entityIds.map((id, index) => (
@@ -127,10 +122,8 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
               key={`entity-${index}`}
               label={id}
               onDelete={() => removeEntityId(index)}
-              size="small"
               icon={<TagIcon />}
               color="success"
-              variant="outlined"
             />
           ))}
         </Stack>
@@ -147,7 +140,6 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          variant="outlined"
           sx={{
             '& .MuiOutlinedInput-root': {
               borderRadius: 2
