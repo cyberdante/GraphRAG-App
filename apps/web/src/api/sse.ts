@@ -1,83 +1,132 @@
 /**
- * Minimal Server-Sent Events reader.
+ * Server-Sent Events parsing, following the HTML specification:
+ * https://html.spec.whatwg.org/multipage/server-sent-events.html
  *
  * `EventSource` cannot be used here: it only issues GET requests and cannot
  * carry a JSON body or an Authorization header. So we read the response body
- * ourselves and split it into frames.
+ * ourselves. See docs/adr/0001-sse-over-eventsource.md.
+ *
+ * The parser is a pure function over chunks, kept separate from the stream
+ * reading so it can be tested without a network or a ReadableStream.
  */
 
 export interface SseFrame {
+  /** From the `event:` field; `message` when the server omits it. */
   event: string;
+  /** Concatenated `data:` lines, joined with newlines. */
   data: string;
+  /** From the `id:` field. Our service emits none. */
+  id?: string;
 }
 
-const FRAME_SEPARATOR = /\r?\n\r?\n/;
+export interface SseParser {
+  /** Feed a decoded chunk; returns whatever frames it completed, often none. */
+  push(chunk: string): SseFrame[];
+}
 
-/** Yields one frame per `event:`/`data:` block in the response body. */
+export function createSseParser(): SseParser {
+  let buffer = '';
+  let dataLines: string[] = [];
+  let eventType = '';
+  let lastId: string | undefined;
+
+  // A blank line dispatches. Per spec a block carrying no `data:` field is not
+  // an event at all — it just resets the accumulated event type.
+  const dispatch = (out: SseFrame[]): void => {
+    if (dataLines.length === 0) {
+      eventType = '';
+      return;
+    }
+    const frame: SseFrame = {
+      event: eventType || 'message',
+      data: dataLines.join('\n'),
+    };
+    if (lastId !== undefined) frame.id = lastId;
+    out.push(frame);
+    dataLines = [];
+    eventType = '';
+  };
+
+  const handleLine = (line: string, out: SseFrame[]): void => {
+    if (line === '') return dispatch(out);
+    // Comments are keepalives and carry nothing.
+    if (line.startsWith(':')) return;
+
+    const colon = line.indexOf(':');
+    const field = colon === -1 ? line : line.slice(0, colon);
+    let value = colon === -1 ? '' : line.slice(colon + 1);
+    if (value.startsWith(' ')) value = value.slice(1);
+
+    switch (field) {
+      case 'event':
+        eventType = value;
+        break;
+      case 'data':
+        dataLines.push(value);
+        break;
+      case 'id':
+        if (!value.includes('\0')) lastId = value;
+        break;
+      default:
+        // Unknown fields, `retry:` included, are ignored per spec. This is what
+        // lets the service add fields without breaking older clients.
+        break;
+    }
+  };
+
+  return {
+    push(chunk: string): SseFrame[] {
+      const out: SseFrame[] = [];
+      buffer += chunk;
+
+      // Hold back a trailing CR: it may be the first half of a CRLF split
+      // across two reads, and splitting now would invent a blank line and
+      // dispatch the frame early.
+      let searchable = buffer;
+      let heldCr = '';
+      if (searchable.endsWith('\r')) {
+        heldCr = '\r';
+        searchable = searchable.slice(0, -1);
+      }
+
+      const lines = searchable.split(/\r\n|\r|\n/);
+      // The final element is an incomplete line, so it stays buffered.
+      buffer = (lines.pop() ?? '') + heldCr;
+
+      for (const line of lines) handleLine(line, out);
+      return out;
+    },
+  };
+}
+
+/** Reads a response body and yields frames as they complete. */
 export async function* readSseStream(
   body: ReadableStream<Uint8Array>,
   signal?: AbortSignal,
 ): AsyncGenerator<SseFrame> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
-
-  const abort = () => {
-    void reader.cancel().catch(() => undefined);
-  };
-  signal?.addEventListener('abort', abort, { once: true });
+  const parser = createSseParser();
 
   try {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-    while (true) {
+    for (;;) {
       const { done, value } = await reader.read();
 
-      // Cancelling the reader ends the read loop cleanly, which would look
-      // like a finished answer. Aborting has to surface as an error so the
-      // caller can tell "stopped" apart from "complete".
+      // Cancelling a reader ends the loop cleanly, which would look like a
+      // finished answer. Aborting has to surface as an error so the caller can
+      // tell "stopped" apart from "complete".
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-
-      // A frame ends at a blank line. Anything after the last one is a
-      // partial frame and stays in the buffer for the next read.
-      const blocks = buffer.split(FRAME_SEPARATOR);
-      buffer = blocks.pop() ?? '';
-
-      for (const block of blocks) {
-        const frame = parseFrame(block);
-        if (frame) yield frame;
+      for (const frame of parser.push(decoder.decode(value, { stream: true }))) {
+        yield frame;
       }
     }
-
-    const trailing = parseFrame(buffer);
-    if (trailing) yield trailing;
   } finally {
-    signal?.removeEventListener('abort', abort);
-    reader.releaseLock();
+    // Runs when the consumer breaks out of its for-await too, so an abandoned
+    // stream never leaks a reader.
+    void reader.cancel().catch(() => undefined);
   }
-}
-
-function parseFrame(block: string): SseFrame | null {
-  const trimmed = block.trim();
-  if (!trimmed) return null;
-
-  let event = 'message';
-  const dataLines: string[] = [];
-
-  for (const line of trimmed.split(/\r?\n/)) {
-    if (line.startsWith(':')) continue; // comment / keep-alive
-    const separator = line.indexOf(':');
-    const field = separator === -1 ? line : line.slice(0, separator);
-    const rawValue = separator === -1 ? '' : line.slice(separator + 1);
-    const value = rawValue.startsWith(' ') ? rawValue.slice(1) : rawValue;
-
-    if (field === 'event') event = value;
-    else if (field === 'data') dataLines.push(value);
-  }
-
-  if (dataLines.length === 0) return null;
-  return { event, data: dataLines.join('\n') };
 }

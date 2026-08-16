@@ -22,10 +22,18 @@ SUPPLY_CHAIN_GRAPH = GraphData(
         GraphNode(id="ship_03", label="Shipment #2403", type="Shipment", group=3, color="#2196F3"),
         GraphNode(id="prod_10", label="Component A", type="Product", group=4, color="#9C27B0"),
         GraphNode(id="prod_11", label="Component B", type="Product", group=4, color="#9C27B0"),
-        GraphNode(id="warehouse_1", label="Warehouse CA", type="Location", group=5, color="#607D8B"),
-        GraphNode(id="warehouse_2", label="Warehouse TX", type="Location", group=5, color="#607D8B"),
-        GraphNode(id="signal_1", label="Late Shipments", type="RiskSignal", group=6, color="#FF5722"),
-        GraphNode(id="signal_2", label="Low Stock Alert", type="RiskSignal", group=6, color="#FF5722"),
+        GraphNode(
+            id="warehouse_1", label="Warehouse CA", type="Location", group=5, color="#607D8B"
+        ),
+        GraphNode(
+            id="warehouse_2", label="Warehouse TX", type="Location", group=5, color="#607D8B"
+        ),
+        GraphNode(
+            id="signal_1", label="Late Shipments", type="RiskSignal", group=6, color="#FF5722"
+        ),
+        GraphNode(
+            id="signal_2", label="Low Stock Alert", type="RiskSignal", group=6, color="#FF5722"
+        ),
     ],
     links=[
         GraphEdge(source="sup_88", target="risk_12", type="HAS_RISK", label="affected by"),
@@ -33,8 +41,12 @@ SUPPLY_CHAIN_GRAPH = GraphData(
         GraphEdge(source="sup_45", target="risk_34", type="HAS_RISK", label="affected by"),
         GraphEdge(source="sup_45", target="ship_02", type="SHIPS", label="shipped"),
         GraphEdge(source="sup_23", target="risk_56", type="HAS_RISK", label="affected by"),
-        GraphEdge(source="ship_01", target="warehouse_1", type="DELIVERED_TO", label="delivered to"),
-        GraphEdge(source="ship_02", target="warehouse_2", type="DELIVERED_TO", label="delivered to"),
+        GraphEdge(
+            source="ship_01", target="warehouse_1", type="DELIVERED_TO", label="delivered to"
+        ),
+        GraphEdge(
+            source="ship_02", target="warehouse_2", type="DELIVERED_TO", label="delivered to"
+        ),
         GraphEdge(source="ship_03", target="warehouse_1", type="IN_TRANSIT", label="in transit to"),
         GraphEdge(source="prod_10", target="ship_01", type="IN_SHIPMENT", label="included in"),
         GraphEdge(source="prod_11", target="ship_02", type="IN_SHIPMENT", label="included in"),
@@ -46,7 +58,8 @@ SUPPLY_CHAIN_GRAPH = GraphData(
 )
 
 
-SUPPLIERS_AT_RISK = """Based on the current supply chain analysis, the following suppliers are at risk in Q1 2026:
+SUPPLIERS_AT_RISK = """\
+Based on the current supply chain analysis, the following suppliers are at risk in Q1 2026:
 
 **1. ITAMCO (Supplier ID: sup_88)**
 - **Risk Level**: High

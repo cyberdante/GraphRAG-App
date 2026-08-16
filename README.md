@@ -1,8 +1,13 @@
 # GraphRAG
 
+[![CI](https://github.com/cyberdante/GraphRAG-App/actions/workflows/ci.yml/badge.svg)](https://github.com/cyberdante/GraphRAG-App/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A white-label GraphRAG console. You ask a question in natural language; the
 service retrieves a subgraph from Neptune, answers with Bedrock, and the app
 streams the answer and draws the graph it came from side by side.
+
+Design decisions are recorded in [docs/adr](docs/adr/).
 
 ## Layout
 
@@ -46,7 +51,22 @@ to `apps/web/.env.local` and set `VITE_USE_MOCK=true`.
 | `pnpm dev:web` / `pnpm dev:api` | One app on its own |
 | `pnpm build` | Typecheck, then build the web app to `apps/web/dist` |
 | `pnpm typecheck` | Typecheck every workspace package |
+| `pnpm test` | Both test suites |
+| `pnpm test:web` / `pnpm test:api` | One suite on its own |
+| `pnpm lint` | Ruff check and format check on the service |
 | `pnpm api:setup` | Create or repair the Python environment |
+
+## Tests
+
+Vitest with jsdom on the web side, pytest on the service. CI runs typecheck,
+both suites, the build, and Ruff on every push.
+
+The two suites are deliberately narrow. The SSE parser is a pure function over
+chunks, so it is tested exhaustively — frames split across reads, a CRLF split
+across reads, bare CR terminators, keepalive comments, unknown fields. The
+service tests assert the *shape and order* of the event sequence rather than the
+wording of the answer, so they will keep passing when Bedrock and Neptune
+replace the fixtures.
 
 ## Python, for someone who has not used it
 

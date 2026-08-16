@@ -55,7 +55,9 @@ async def stream_answer(
         # A first pass at the subgraph, so the visualization has something to
         # draw while the rest of the retrieval runs.
         partial = subgraph(min(8, max_nodes))
-        yield frame("graph", {**partial.model_dump(exclude_none=True), "jsonLD": graph_to_jsonld(partial)})
+        yield frame(
+            "graph", {**partial.model_dump(exclude_none=True), "jsonLD": graph_to_jsonld(partial)}
+        )
         await asyncio.sleep(settings.fixture_token_delay * 6)
 
         yield frame(
@@ -63,8 +65,12 @@ async def stream_answer(
             StatusPayload(phase="processing", message="Analyzing relationships..."),
         )
 
-        full = subgraph(max_nodes) if max_nodes < len(SUPPLY_CHAIN_GRAPH.nodes) else SUPPLY_CHAIN_GRAPH
-        yield frame("graph", {**full.model_dump(exclude_none=True), "jsonLD": graph_to_jsonld(full)})
+        full = (
+            subgraph(max_nodes) if max_nodes < len(SUPPLY_CHAIN_GRAPH.nodes) else SUPPLY_CHAIN_GRAPH
+        )
+        yield frame(
+            "graph", {**full.model_dump(exclude_none=True), "jsonLD": graph_to_jsonld(full)}
+        )
         await asyncio.sleep(settings.fixture_token_delay * 4)
 
         yield frame(

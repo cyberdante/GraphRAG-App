@@ -36,3 +36,24 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Calling these in argument defaults is how FastAPI declares dependencies and
+# parameter metadata. B008 exists to catch mutable defaults, which these are not.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "error",
+    # Starlette's TestClient still imports httpx 0.x. Nothing to act on until
+    # FastAPI moves; failing CI over someone else's deprecation helps no one.
+    "ignore::DeprecationWarning:starlette.*",
+    "ignore:Using `httpx` with `starlette.testclient`:UserWarning",
+]

@@ -14,6 +14,10 @@
     "build": "pnpm --filter @graphrag/web build",
     "preview": "pnpm --filter @graphrag/web preview",
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:web": "pnpm --filter @graphrag/web test",
+    "test:api": "pnpm --filter @graphrag/api test",
+    "lint": "pnpm --filter @graphrag/api lint",
     "api:setup": "pnpm --filter @graphrag/api setup"
   },
   "pnpm": {
