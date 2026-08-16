@@ -62,6 +62,18 @@ class GraphRetrieval(BaseModel):
 class RetrievalOptions(BaseModel):
     mode: Literal["graph_rag"] = "graph_rag"
     graph: GraphRetrieval = Field(default_factory=GraphRetrieval)
+    #: Names a backend the deployment offers. Never an endpoint — see
+    #: app/retrieval/registry.py for why that distinction is load-bearing.
+    backend: str | None = None
+    top_k: int | None = Field(default=None, ge=1)
+
+
+class BackendInfo(BaseModel):
+    """One retrieval backend this deployment can answer with."""
+
+    name: str
+    description: str
+    default: bool
 
 
 class QueryInputPayload(BaseModel):

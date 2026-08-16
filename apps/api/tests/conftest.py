@@ -38,3 +38,9 @@ def query_body() -> dict:
             "graph": {"max_hops": 2, "max_nodes": 150, "entity_types": []},
         },
     }
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    """Run async tests on asyncio; trio is not a dependency here."""
+    return "asyncio"

@@ -21,6 +21,8 @@ from .models import (
     UsagePayload,
 )
 from .ontology import graph_to_jsonld
+from .retrieval.models import RetrievalRequest
+from .retrieval.registry import BackendRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,7 @@ def frame(event: str, data: object) -> str:
 async def stream_answer(
     request: QueryRequest,
     settings: Settings,
+    registry: BackendRegistry,
 ) -> AsyncGenerator[str, None]:
     """Yield the full event sequence for one query.
 
@@ -47,10 +50,31 @@ async def stream_answer(
         max_nodes = request.retrieval.graph.max_nodes
         query_text = request.input.text
 
+        # Raises before the stream opens if the backend is unknown, so the
+        # caller gets a 400 rather than an error frame mid-answer.
+        store = registry.get(request.retrieval.backend)
+
         yield frame(
             "status",
-            StatusPayload(phase="retrieval", message="Querying knowledge graph..."),
+            StatusPayload(
+                phase="retrieval",
+                message=f"Querying knowledge graph via {store.name}...",
+            ),
         )
+
+        candidates = await store.retrieve(
+            RetrievalRequest(
+                query=query_text,
+                max_nodes=max_nodes,
+                max_hops=request.retrieval.graph.max_hops,
+                entity_types=request.retrieval.graph.entity_types,
+                top_k=min(
+                    request.retrieval.top_k or settings.top_k_default,
+                    settings.top_k_max,
+                ),
+            )
+        )
+        logger.debug("retrieved %d candidates from %s", len(candidates), store.name)
         await asyncio.sleep(settings.fixture_token_delay * 8)
 
         # A first pass at the subgraph, so the visualization has something to

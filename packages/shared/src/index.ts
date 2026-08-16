@@ -64,6 +64,22 @@ export interface RetrievalOptions {
     max_nodes: number;
     entity_types: string[];
   };
+  /**
+   * Names a retrieval backend the deployment offers, from GET /api/backends.
+   *
+   * A name, never an endpoint. Letting a client describe a destination would
+   * make the service an SSRF vector into whatever its network can reach, so
+   * the server resolves this against a registry built from its own settings.
+   */
+  backend?: string;
+  top_k?: number;
+}
+
+/** One retrieval backend, as listed by GET /api/backends. */
+export interface BackendInfo {
+  name: string;
+  description: string;
+  default: boolean;
 }
 
 export interface QueryInputPayload {
