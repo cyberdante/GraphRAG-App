@@ -41,6 +41,20 @@ class Settings(BaseSettings):
     same_subject_penalty: float = 0.3
     same_source_penalty: float = 0.1
 
+    # --- answer generation ---
+    #: anthropic | openai | bedrock. Which provider litellm talks to.
+    llm_provider: str = "anthropic"
+    #: Full litellm model id. Empty means the provider's default.
+    llm_model: str = ""
+    #: Overrides the provider's usual environment variable when set.
+    llm_api_key: str | None = None
+    answer_max_tokens: int = 4096
+    llm_timeout: float = 60.0
+    #: Left unset deliberately. The Claude 5 family rejects `temperature` with
+    #: a 400, so a default here would break the recommended model rather than
+    #: tune it. Set it only for a provider known to accept it.
+    llm_temperature: float | None = None
+
     # The real retrieval path.
     aws_region: str = "us-east-1"
     bedrock_model_id: str = "anthropic.claude-sonnet-5"

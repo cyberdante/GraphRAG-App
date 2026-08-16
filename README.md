@@ -187,12 +187,38 @@ apart.
 body or an auth header, so `sse.ts` reads the response stream and parses frames
 directly.
 
+## Answering with a model
+
+Retrieval and generation are both ports with a fixture adapter, so the whole
+pipeline runs with nothing configured — no keys, no AWS, no network. That is
+deliberate: the demo works in five seconds and costs nothing.
+
+Give it a key and a model answers instead:
+
+```bash
+cd apps/api && ./.venv/bin/pip install -e ".[llm]"
+export ANTHROPIC_API_KEY=sk-ant-...     # or OPENAI_API_KEY
+```
+
+Provider and model come from `RAGSTONE_LLM_PROVIDER` and `RAGSTONE_LLM_MODEL`;
+keys are read from each provider's own variable, so an existing shell
+environment works untouched. `GET /health` reports which generator is live.
+
+Answers are grounded: the model receives the ranked evidence as numbered facts
+and is asked to cite them inline, and the citations returned are the ones it
+actually used. The graph frame is built first and the evidence narrowed to what
+it holds, so **the prompt, the citations and the drawing all describe the same
+set** — a cited source always points at a node on screen.
+
+`temperature` is not sent unless a deployment asks for it: the Claude 5 family
+rejects it with a 400, so a default would break the recommended model rather
+than tune it.
+
 ## What is real and what is not
 
-The service currently answers from fixtures in `apps/api/app/fixtures.py` — the
-supply-chain graph, three canned answers, and citations. Bedrock and Neptune
-land in Sprint 3. Only `stream_answer` changes when they do; the frames stay
-identical, so the frontend needs no work.
+Retrieval still answers from the fixture graph in `apps/api/app/fixtures.py`.
+The Neptune SPARQL and openCypher adapters implement the same `GraphStore`
+port and land with their endpoints; nothing downstream changes when they do.
 
 Roadmap: https://claude.ai/code/artifact/ca1d6947-831f-492e-9d1f-f7903d4b3f07
 

@@ -11,7 +11,8 @@ import logging
 from collections.abc import AsyncGenerator
 
 from .config import Settings
-from .fixtures import answer_for
+from .llm.context import citations_for, render_context
+from .llm.generator import AnswerGenerator
 from .models import (
     DeltaPayload,
     DonePayload,
@@ -22,7 +23,7 @@ from .models import (
 )
 from .ontology import graph_to_jsonld
 from .retrieval import scoring
-from .retrieval.graph_frame import graph_from_candidates
+from .retrieval.graph_frame import graph_from_candidates, grounded_in
 from .retrieval.models import RetrievalRequest
 from .retrieval.registry import BackendRegistry
 
@@ -49,6 +50,7 @@ async def stream_answer(
     request: QueryRequest,
     settings: Settings,
     registry: BackendRegistry,
+    generator: AnswerGenerator,
 ) -> AsyncGenerator[str, None]:
     """Yield the full event sequence for one query.
 
@@ -120,8 +122,12 @@ async def stream_answer(
         logger.debug("ranked %d candidates, kept %d", len(candidates), len(top))
 
         # The graph the user sees is the evidence the answer stands on, not a
-        # separate query that could disagree with it.
-        yield frame("graph", _graph_payload(graph_from_candidates(top, max_nodes=max_nodes)))
+        # separate query that could disagree with it. The frame is built first
+        # and the evidence narrowed to what it holds, so the prompt, the
+        # citations and the drawing all describe the same set.
+        graph = graph_from_candidates(top, max_nodes=max_nodes)
+        top = grounded_in(graph, top)
+        yield frame("graph", _graph_payload(graph))
         await asyncio.sleep(settings.fixture_token_delay * 4)
 
         yield frame(
@@ -129,27 +135,28 @@ async def stream_answer(
             StatusPayload(phase="generation", message="Generating response..."),
         )
 
-        text, citations = answer_for(query_text)
+        # The evidence, numbered so the model has a handle to cite.
+        context = render_context(top)
+        usage: dict[str, int] = {}
+        answer = ""
 
-        # Emit increments, not a running total — the same way ConverseStream
-        # will once it is wired in.
-        chunks = text.split(" ")
-        for index, chunk in enumerate(chunks):
-            piece = chunk if index == 0 else f" {chunk}"
+        async for piece in generator.stream(query_text, context, request.messages, usage):
+            answer += piece
             yield frame("delta", DeltaPayload(text=piece))
-            if settings.fixture_token_delay:
-                await asyncio.sleep(settings.fixture_token_delay)
 
-        # Rough stand-in until real usage comes back from Bedrock.
-        prompt_words = sum(len(message.content.split()) for message in request.messages)
+        # Citations come from what the answer actually cited, so the sources
+        # panel reflects the answer rather than the retrieval.
+        cited = citations_for(answer, top)
         yield frame(
             "done",
             DonePayload(
                 usage=UsagePayload(
-                    input_tokens=int(prompt_words * 1.3),
-                    output_tokens=int(len(chunks) * 1.2),
+                    input_tokens=usage.get("input_tokens", 0),
+                    output_tokens=usage.get("output_tokens", 0),
                 ),
-                citations=citations,
+                citations=[
+                    candidate.to_citation(index) for index, candidate in enumerate(cited, start=1)
+                ],
             ),
         )
 

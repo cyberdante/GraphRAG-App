@@ -196,3 +196,45 @@ class TestGraphFollowsTheQuestion:
         # everywhere and ranking degrades to the store's return order.
         labels = self.labels(client, query_body, "shipments")
         assert any(label.startswith("Shipment") for label in labels)
+
+
+class TestCitationsMatchTheGraph:
+    """Every citation must point at something the user can actually see.
+
+    The regression this guards: the frame respects max_nodes and the candidate
+    list does not, so citations referenced eleven nodes while the drawing held
+    seven. Clicking a source would highlight nothing, and the claim that the
+    picture *is* the evidence would be false.
+    """
+
+    def frames_for(self, client: TestClient, body: dict) -> tuple[set[str], list[dict]]:
+        body = {**body, "retrieval": {**body["retrieval"], "top_k": 8}}
+        body["retrieval"]["graph"] = {**body["retrieval"]["graph"], "max_nodes": 8}
+        events = stream(client, body)
+
+        graphs = [data for event, data in events if event == "graph"]
+        done = next(data for event, data in events if event == "done")
+        return {node["id"] for node in graphs[-1]["nodes"]}, done["citations"]
+
+    def test_every_cited_node_appears_in_the_graph(
+        self, client: TestClient, query_body: dict
+    ) -> None:
+        node_ids, citations = self.frames_for(client, query_body)
+
+        cited: set[str] = set()
+        for citation in citations:
+            cited.update(citation.get("nodeIds") or [])
+
+        assert cited
+        assert cited <= node_ids
+
+    def test_citations_survive_a_tight_node_cap(self, client: TestClient, query_body: dict) -> None:
+        # Narrowing the frame narrows the evidence rather than orphaning it.
+        query_body["retrieval"]["graph"]["max_nodes"] = 4
+        events = stream(client, query_body)
+        graphs = [data for event, data in events if event == "graph"]
+        done = next(data for event, data in events if event == "done")
+        node_ids = {node["id"] for node in graphs[-1]["nodes"]}
+
+        for citation in done["citations"]:
+            assert set(citation.get("nodeIds") or []) <= node_ids

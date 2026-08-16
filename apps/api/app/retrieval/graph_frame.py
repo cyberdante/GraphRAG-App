@@ -25,6 +25,23 @@ def _group_for(entity_type: str) -> int:
     return _GROUPS.setdefault(entity_type, len(_GROUPS) + 1)
 
 
+def grounded_in(graph: GraphData, candidates: list[Candidate]) -> list[Candidate]:
+    """The candidates the frame actually represents.
+
+    The frame is capped; the candidate list is not. Without this filter the
+    answer can cite evidence the picture does not contain — clicking a source
+    then highlights nothing, and the claim that the drawing *is* the evidence
+    stops being true. Narrowing the prompt and the citations to what was drawn
+    makes the invariant structural rather than aspirational.
+    """
+    ids = {node.id for node in graph.nodes}
+    return [
+        candidate
+        for candidate in candidates
+        if candidate.kind != "statement" or (candidate.subject in ids and candidate.object in ids)
+    ]
+
+
 def graph_from_candidates(candidates: list[Candidate], *, max_nodes: int) -> GraphData:
     """Builds a graph frame from ranked candidates, best first.
 

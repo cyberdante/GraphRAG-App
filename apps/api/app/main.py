@@ -1,11 +1,12 @@
 import logging
-from functools import lru_cache
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from .config import Settings, get_settings
+from .llm.generator import AnswerGenerator
+from .llm.registry import build_generator
 from .models import BackendInfo, QueryRequest
 from .retrieval.registry import BackendRegistry, build_registry
 from .retrieval.store import UnknownBackendError
@@ -28,26 +29,34 @@ app.add_middleware(
 )
 
 
-@lru_cache
-def _registry() -> BackendRegistry:
-    """Built once from settings, never from a request."""
-    return build_registry(get_settings())
+def get_registry(settings: Settings = Depends(get_settings)) -> BackendRegistry:
+    """Built from the settings this request resolved.
+
+    Deliberately not cached on the module: an lru_cache reading the global
+    settings ignores dependency overrides, so tests silently exercised the
+    deployment's configuration instead of their own. Both objects are cheap
+    to construct and hold no connection state.
+    """
+    return build_registry(settings)
 
 
-def get_registry() -> BackendRegistry:
-    return _registry()
+def get_generator(settings: Settings = Depends(get_settings)) -> AnswerGenerator:
+    """Falls back to fixtures when the deployment has no credentials."""
+    return build_generator(settings)
 
 
 @app.get("/health")
 async def health(
     settings: Settings = Depends(get_settings),
     registry: BackendRegistry = Depends(get_registry),
+    generator: AnswerGenerator = Depends(get_generator),
 ) -> dict[str, object]:
     return {
         "status": "ok",
         "environment": settings.environment,
         "backends": registry.names(),
         "default_backend": registry.default,
+        "answers": generator.name,
     }
 
 
@@ -73,6 +82,7 @@ async def query(
     request: QueryRequest,
     settings: Settings = Depends(get_settings),
     registry: BackendRegistry = Depends(get_registry),
+    generator: AnswerGenerator = Depends(get_generator),
 ) -> StreamingResponse:
     """Answer a query as a Server-Sent Events stream.
 
@@ -88,7 +98,7 @@ async def query(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
     return StreamingResponse(
-        stream_answer(request, settings, registry),
+        stream_answer(request, settings, registry, generator),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache, no-transform",

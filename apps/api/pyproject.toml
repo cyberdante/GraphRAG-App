@@ -11,7 +11,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Sprint 2 — the real retrieval path.
+llm = [
+    "litellm>=1.55",
+]
+# The real retrieval path.
 aws = [
     "boto3>=1.35",
     "gremlinpython>=3.7",
