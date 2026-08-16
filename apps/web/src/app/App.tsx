@@ -1,12 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert,
-  Box,
-  CssBaseline,
-  Snackbar,
-  ThemeProvider,
-  createTheme,
-} from '@mui/material';
+import { Alert, Box, CssBaseline, Snackbar, ThemeProvider } from '@mui/material';
+import { buildTheme, resolveTenant } from '@/theme';
 import { Navbar } from './components/Navbar';
 import { QueryInput } from './components/QueryInput';
 import { StreamingResponse } from './components/StreamingResponse';
@@ -290,23 +284,17 @@ function AppContent() {
     exportGraphToJsonLD(graphData, currentConversationId),
   );
 
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode: darkMode ? 'dark' : 'light',
-          primary: { main: '#1976d2' },
-          secondary: { main: '#dc004e' },
-        },
-      }),
-    [darkMode],
-  );
+  // Which brand this instance wears. `?tenant=` selects it for now; item 73
+  // replaces that with a fetched document, and item 76 with a switcher.
+  const tenant = useMemo(() => resolveTenant(), []);
+  const theme = useMemo(() => buildTheme(tenant, darkMode), [tenant, darkMode]);
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%' }}>
         <Navbar
+          brand={tenant.brand}
           onMenuClick={() => setSidebarOpen(true)}
           darkMode={darkMode}
           onThemeToggle={() => setDarkMode((previous) => !previous)}
@@ -359,7 +347,7 @@ function AppContent() {
             </Box>
 
             <Box sx={{ flex: 1, minHeight: { xs: '50vh', lg: 'auto' } }}>
-              <D3GraphVisualization data={graphData} darkMode={darkMode} />
+              <D3GraphVisualization data={graphData} tenant={tenant} />
             </Box>
           </Box>
         </Box>

@@ -1,16 +1,33 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Box, Paper, Typography, IconButton, Tooltip, Chip, Stack, Switch, FormControlLabel } from '@mui/material';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Box,
+  Chip,
+  FormControlLabel,
+  IconButton,
+  Paper,
+  Stack,
+  Switch,
+  Tooltip,
+  Typography,
+  useTheme,
+  alpha,
+} from '@mui/material';
 import {
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
   CenterFocusStrong as CenterFocusStrongIcon,
 } from '@mui/icons-material';
 import * as d3 from 'd3';
+import type { Tenant } from '@graphrag/shared';
+import { graphPalette } from '@/theme';
 import { GraphData, GraphNode, GraphEdge } from '@/types';
+
+/** One marker per document; its colour is set from the palette. */
+const ARROW_MARKER_ID = 'graph-arrow';
 
 interface D3GraphVisualizationProps {
   data: GraphData;
-  darkMode: boolean;
+  tenant: Tenant;
 }
 
 interface SimulationNode extends d3.SimulationNodeDatum, GraphNode {
@@ -27,7 +44,11 @@ interface SimulationLink
   target: string | SimulationNode;
 }
 
-export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data, darkMode }) => {
+export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data, tenant }) => {
+  const theme = useTheme();
+  // Memoised: the render effect depends on this, and a fresh object every
+  // render would tear down and rebuild the simulation continuously.
+  const palette = useMemo(() => graphPalette(theme, tenant), [theme, tenant]);
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
@@ -75,7 +96,7 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
     svg.append('defs').selectAll('marker')
       .data(['end'])
       .enter().append('marker')
-        .attr('id', () => `arrow-${darkMode ? 'dark' : 'light'}`)
+        .attr('id', () => ARROW_MARKER_ID)
         .attr('viewBox', '0 -5 10 10')
         .attr('refX', 25)
         .attr('refY', 0)
@@ -84,7 +105,7 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
         .attr('orient', 'auto')
       .append('path')
         .attr('d', 'M0,-5L10,0L0,5')
-        .attr('fill', darkMode ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)');
+        .attr('fill', palette.arrow);
 
     // Prepare data
     const nodes: SimulationNode[] = data.nodes.map(node => ({ ...node }));
@@ -111,9 +132,9 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
       .selectAll('line')
       .data(links)
       .enter().append('line')
-        .attr('stroke', darkMode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.4)')
+        .attr('stroke', palette.link)
         .attr('stroke-width', 2)
-        .attr('marker-end', `url(#arrow-${darkMode ? 'dark' : 'light'})`);
+        .attr('marker-end', `url(#${ARROW_MARKER_ID})`);
 
     // Create link labels
     const linkLabel = g.append('g')
@@ -123,7 +144,7 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
       .enter().append('text')
         .attr('class', 'link-label')
         .attr('font-size', '10px')
-        .attr('fill', darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)')
+        .attr('fill', palette.sublabel)
         .attr('text-anchor', 'middle')
         .attr('pointer-events', 'none')
         .text(d => d.label || d.type);
@@ -143,8 +164,10 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
     // Add circles to nodes
     node.append('circle')
       .attr('r', 15)
-      .attr('fill', d => d.color || '#69b3a2')
-      .attr('stroke', darkMode ? '#fff' : '#000')
+      // Colour follows the entity type, so a tenant restyles the whole graph
+      // by declaring six colours rather than restating them per node.
+      .attr('fill', d => palette.nodeColor(d.type))
+      .attr('stroke', palette.nodeStroke)
       .attr('stroke-width', 2)
       .on('click', (event, d) => {
         event.stopPropagation();
@@ -158,7 +181,7 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
       .attr('font-weight', 'bold')
-      .attr('fill', darkMode ? '#fff' : '#000')
+      .attr('fill', palette.label)
       .attr('pointer-events', 'none')
       .style('user-select', 'none')
       .text(d => d.label)
@@ -169,7 +192,7 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
       .attr('dy', 25)
       .attr('text-anchor', 'middle')
       .attr('font-size', '9px')
-      .attr('fill', darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)')
+      .attr('fill', palette.sublabel)
       .attr('pointer-events', 'none')
       .style('user-select', 'none')
       .text(d => d.type);
@@ -267,7 +290,7 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
     return () => {
       simulation.stop();
     };
-  }, [data, darkMode, dimensions]);
+  }, [data, palette, dimensions]);
 
   // Update label visibility when toggle changes
   useEffect(() => {
@@ -315,7 +338,7 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
         borderRadius: 2,
         overflow: 'hidden',
         position: 'relative',
-        bgcolor: darkMode ? '#0a1929' : '#f5f5f5'
+        bgcolor: palette.canvas
       }}
     >
       {/* Header */}
@@ -326,7 +349,7 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
           left: 0,
           right: 0,
           p: 2,
-          bgcolor: darkMode ? 'rgba(10, 25, 41, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+          bgcolor: alpha(theme.palette.background.paper, 0.9),
           backdropFilter: 'blur(8px)',
           zIndex: 10,
           borderBottom: 1,

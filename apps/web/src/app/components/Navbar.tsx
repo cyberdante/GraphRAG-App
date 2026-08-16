@@ -12,6 +12,7 @@ import {
   ListItemIcon,
   ListItemText
 } from '@mui/material';
+import type { TenantBrand } from '@graphrag/shared';
 import {
   Menu as MenuIcon,
   Brightness4 as DarkModeIcon,
@@ -24,6 +25,7 @@ import {
 } from '@mui/icons-material';
 
 interface NavbarProps {
+  brand: TenantBrand;
   onMenuClick: () => void;
   darkMode: boolean;
   onThemeToggle: () => void;
@@ -35,7 +37,8 @@ interface NavbarProps {
   onExportGraphJsonLD?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ 
+export const Navbar: React.FC<NavbarProps> = ({
+  brand, 
   onMenuClick, 
   darkMode, 
   onThemeToggle, 
@@ -74,7 +77,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       }}
     >
       <Toolbar>
-        {/* Logo Placeholder */}
         <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
           <Box
             sx={{
@@ -88,9 +90,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               mr: 2
             }}
           >
-            <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
-              GR
-            </Typography>
+            {brand.logoUrl ? (
+              <Box
+                component="img"
+                src={brand.logoUrl}
+                alt={brand.name}
+                sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            ) : (
+              <Typography
+                variant="h6"
+                sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}
+              >
+                {brand.initials}
+              </Typography>
+            )}
           </Box>
           <Typography 
             variant="h6" 
@@ -100,7 +114,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               fontWeight: 600
             }}
           >
-            GraphRAG Console
+            {brand.name}
           </Typography>
         </Box>
 

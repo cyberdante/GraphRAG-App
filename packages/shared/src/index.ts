@@ -140,3 +140,5 @@ export interface GraphRagClient {
 }
 
 export * from './ontology';
+
+export * from './tenant';
