@@ -1,184 +1,144 @@
-# White-Label GraphRAG Application
+# GraphRAG
 
-A professional white-label GraphRAG application that uses natural language queries to communicate with a FastAPI Python backend, retrieves information from AWS Bedrock, and represents data as triples using Neptune.
+A white-label GraphRAG console. You ask a question in natural language; the
+service retrieves a subgraph from Neptune, answers with Bedrock, and the app
+streams the answer and draws the graph it came from side by side.
+
+## Layout
+
+```
+graphrag/
+├─ apps/
+│  ├─ web/            React 18 · MUI 7 · Vite 6 · D3 7
+│  └─ api/            FastAPI · Python 3.11+
+├─ packages/
+│  ├─ shared/         The wire contract both sides build against
+│  └─ config/         Shared strict tsconfig base
+└─ pnpm-workspace.yaml
+```
+
+`packages/shared/src/index.ts` is the single definition of a message, a graph
+and a stream event. `apps/api/app/models.py` mirrors it field for field. When
+one changes, change the other.
+
+## Getting started
+
+```bash
+pnpm install          # JavaScript dependencies for the whole workspace
+pnpm api:setup        # one-time: builds the Python environment
+pnpm dev              # starts both apps
+```
+
+- Web: http://localhost:5173
+- API: http://localhost:8000 — interactive docs at http://localhost:8000/docs
+
+Vite proxies `/api` to the service, so there is no CORS to think about in
+development.
+
+To run the frontend alone with no Python at all, copy `apps/web/.env.example`
+to `apps/web/.env.local` and set `VITE_USE_MOCK=true`.
+
+### Scripts
+
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Both apps, in parallel |
+| `pnpm dev:web` / `pnpm dev:api` | One app on its own |
+| `pnpm build` | Typecheck, then build the web app to `apps/web/dist` |
+| `pnpm typecheck` | Typecheck every workspace package |
+| `pnpm api:setup` | Create or repair the Python environment |
+
+## Python, for someone who has not used it
+
+Everything here has a JavaScript counterpart you already know.
+
+| Python | The equivalent you know |
+| --- | --- |
+| `pyproject.toml` | `package.json` |
+| `pip` | `npm` / `pnpm` |
+| `.venv/` | `node_modules/`, but it also contains its own copy of Python |
+| `uvicorn` | `vite` — the process that serves the app in development |
+| `ruff` | `eslint` |
+| `pytest` | `vitest` |
+
+**Virtual environments.** Python has no `node_modules`. By default `pip`
+installs packages system-wide, where two projects wanting different versions of
+the same library collide. A *virtual environment* fixes that: it is a folder —
+here, `apps/api/.venv` — holding a private Python and this project's packages.
+`pnpm api:setup` creates it. It is gitignored, and deleting it costs nothing;
+rerun setup to get it back.
+
+You do not need to "activate" anything. Every script in `apps/api/package.json`
+calls `./.venv/bin/...` directly, so `pnpm dev` works from a plain shell.
+
+**Which Python.** The service needs 3.11 or newer. macOS ships 3.9, which is
+past end of life, so `scripts/setup.sh` searches for a newer one — including
+Homebrew and Anaconda installs that are not on your `PATH` — and tells you which
+it picked. If it finds nothing:
+
+```bash
+brew install python@3.12
+pnpm api:setup
+```
+
+To force a specific interpreter: `PYTHON=/path/to/python pnpm api:setup`.
+
+**Adding a dependency.** Add it to the `dependencies` list in
+`apps/api/pyproject.toml`, then rerun `pnpm api:setup`. There is no
+`pip install --save`; the file is the source of truth.
+
+**Reading the code.** Three things account for most of what looks unfamiliar:
+
+- Indentation defines blocks. There are no braces, and the indentation is not
+  cosmetic.
+- `async def` and `await` mean what they mean in JavaScript. `yield` inside an
+  `async def` makes an async generator — the same `for await` you use in
+  `client.ts`, from the other side.
+- Type hints (`def answer_for(query: str) -> tuple[str, list[Citation]]`) are
+  optional annotations. Pydantic uses them at runtime to validate and parse
+  incoming JSON, which is why `models.py` is mostly type declarations.
+
+**When something breaks.** `ModuleNotFoundError` almost always means the
+environment is stale — rerun `pnpm api:setup`. A `422` from the API is Pydantic
+rejecting a request body that does not match the model, and the response says
+which field.
+
+## How a query flows
+
+The service answers over Server-Sent Events. Five frame types, always in this
+order:
+
+| Event | Carries |
+| --- | --- |
+| `status` | Which retrieval phase is running, for the progress line |
+| `graph` | A subgraph to draw — sent more than once, refined as it goes |
+| `delta` | The next piece of the answer. Increments, not the running total |
+| `done` | Token usage and citations |
+| `error` | A failure; the stream ends here |
+
+`apps/web/src/api/client.ts` picks the transport. `HttpStreamingAPI` talks to
+the service; `MockStreamingAPI` replays fixtures in the browser. Both implement
+`GraphRagClient` and emit identical events, so nothing downstream can tell them
+apart.
+
+`EventSource` is not used: it only issues GET requests and cannot carry a JSON
+body or an auth header, so `sse.ts` reads the response stream and parses frames
+directly.
+
+## What is real and what is not
+
+The service currently answers from fixtures in `apps/api/app/fixtures.py` — the
+supply-chain graph, three canned answers, and citations. Bedrock and Neptune
+land in Sprint 2. Only `stream_answer` changes when they do; the frames stay
+identical, so the frontend needs no work.
+
+Roadmap: https://claude.ai/code/artifact/ca1d6947-831f-492e-9d1f-f7903d4b3f07
 
 ## Features
 
-### Core Functionality
-- **Natural Language Query Interface**: Clean Material Design UI for natural language input
-- **Multiple Input Types**: Support for text queries, file uploads, URLs, and entity IDs
-- **Streaming HTTP Communication**: Real-time SSE (Server-Sent Events) streaming responses
-- **Interactive 3D Graph Visualization**: Custom D3.js-based knowledge graph visualization
-- **Persistent Conversation History**: localStorage-based conversation management
-- **Export Capabilities**: 
-  - Conversations: PDF, CSV formats
-  - Graph data: PDF, CSV, JSON-LD (semantic web compatible)
-
-### UI Components
-- **Top Navbar**: Logo placeholder, hamburger menu, theme toggle, export options
-- **Query Input**: Multi-modal input supporting text, files, URLs, and entity IDs
-- **Streaming Response Display**: Real-time typing effects with citations
-- **Interactive Graph Visualization**: 
-  - D3.js force-directed layout
-  - Zoom, pan, drag interactions
-  - Label toggle
-  - Node selection with info panel
-  - Dark/light theme support
-- **Query History Sidebar**: Conversation history with load functionality
-
-### Theme Support
-- Light/Dark mode toggle
-- Material Design components
-- Responsive layout (mobile/desktop)
-
-## Technology Stack
-
-- **Frontend Framework**: React 18.3.1 with TypeScript
-- **UI Library**: Material-UI (@mui/material 7.3.5)
-- **Graph Visualization**: D3.js 7.9.0 (custom implementation)
-- **Build Tool**: Vite 6.3.5
-- **Styling**: Tailwind CSS 4.1.12 + Material-UI theme system
-- **State Management**: React hooks + localStorage
-- **Export Libraries**: jsPDF, jspdf-autotable
-
-## Project Structure
-
-```
-src/
-├── app/
-│   ├── App.tsx                      # Main application component
-│   └── components/
-│       ├── D3GraphVisualization.tsx # Custom D3.js graph visualization
-│       ├── Navbar.tsx               # Top navigation bar
-│       ├── QueryHistory.tsx         # Conversation history sidebar
-│       ├── QueryInput.tsx           # Multi-modal query input
-│       └── StreamingResponse.tsx    # Streaming chat interface
-├── utils/
-│   ├── mockApi.ts                   # Mock streaming API with SSE
-│   ├── mockData.ts                  # Supply chain demo data
-│   ├── exportUtils.ts               # PDF/CSV/JSON-LD export functions
-│   └── jsonLdConverter.ts           # JSON-LD semantic web conversion
-├── types/
-│   └── index.ts                     # TypeScript type definitions
-└── styles/
-    ├── index.css                    # Global styles
-    ├── tailwind.css                 # Tailwind imports
-    └── theme.css                    # Custom theme tokens
-```
-
-## Recent Updates
-
-### January 27, 2026
-
-#### Custom D3.js Graph Visualization
-- Replaced `react-force-graph-3d` with fully custom D3.js implementation
-- Features:
-  - Properly sized nodes (15px radius) for better visibility
-  - Visible relationship links with directional arrows
-  - Working label toggle functionality
-  - Optimized force simulation parameters
-  - Interactive drag, zoom, and pan
-  - Dark/light theme support
-  - Node selection with info panel
-  - Auto-fit zoom on initial load
-
-#### Figma Data Attribute Fix
-- Resolved React warnings about unsupported props on Material UI components
-- Implemented proper prop consumption at App component boundary
-- Prevents Figma's `data-fg-*` attributes from propagating to Material UI
-
-#### Export Functionality
-- Complete conversation export (PDF, CSV)
-- Graph data export (PDF, CSV, JSON-LD)
-- JSON-LD export with proper semantic web formatting for compatibility with other tools
-
-#### Persistence
-- localStorage-based conversation management
-- Query history tracking
-- Auto-save on conversation updates
-- Conversation switching with state preservation
-
-## Mock Data
-
-The application currently uses supply chain data for demonstration:
-- **Entities**: Suppliers, Shipments, Risk Signals, Products, Locations
-- **Relationships**: ships_to, located_in, supplies, has_risk, etc.
-- **Sample Queries**: 
-  - "Show me all suppliers in China"
-  - "What are the risk signals for Acme Corporation?"
-  - "Show shipment routes from Vietnam"
-
-## Development
-
-### Installation
-
-```bash
-npm install
-# or
-pnpm install
-```
-
-### Build
-
-```bash
-npm run build
-# or
-pnpm run build
-```
-
-### Key Dependencies
-
-- React 18.3.1
-- Material-UI 7.3.5
-- D3.js 7.9.0
-- Vite 6.3.5
-- TypeScript (via @vitejs/plugin-react)
-- Tailwind CSS 4.1.12
-
-## Architecture Notes
-
-### Streaming API
-The mock API (`utils/mockApi.ts`) demonstrates the expected backend interface:
-- SSE-based streaming responses
-- Event types: `status`, `graph`, `delta`, `done`, `error`
-- Graph data returned as JSON with nodes and links
-
-### Graph Visualization
-The D3.js implementation uses:
-- Force-directed layout with collision detection
-- SVG rendering for performance
-- Zoom behavior with programmatic controls
-- Dynamic theme switching
-- Efficient tick updates
-
-### Export System
-- PDF exports use jsPDF with autotable plugin
-- CSV exports use simple text/csv generation
-- JSON-LD exports follow semantic web standards with proper @context
-
-## Future Enhancements
-
-- [ ] Backend integration with FastAPI
-- [ ] AWS Bedrock connection
-- [ ] Neptune database integration
-- [ ] Real authentication/authorization
-- [ ] Advanced graph filtering and search
-- [ ] Graph analytics and metrics
-- [ ] Custom branding/white-labeling interface
-- [ ] Multi-language support
-
-## White-Labeling
-
-This application is designed to be easily white-labeled:
-- Material-UI theming system for colors and typography
-- Logo placeholder in navbar (easily replaceable)
-- Configurable theme tokens in `src/styles/theme.css`
-- No hardcoded branding elements
-
-## License
-
-Private - All rights reserved
-
-## Contact
-
-For questions or support, please contact the repository owner.
+- Natural language query with file, URL and entity-ID attachments
+- Streaming answers rendered as markdown, with citations and token usage
+- Stop mid-answer; partial output is kept
+- Interactive D3 force-directed knowledge graph — zoom, pan, drag, labels,
+  node inspector, light and dark
+- Conversation history in localStorage, with export to PDF, CSV and JSON-LD
