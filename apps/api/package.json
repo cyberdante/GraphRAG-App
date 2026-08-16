@@ -7,8 +7,9 @@
     "setup": "bash scripts/setup.sh",
     "dev": "bash scripts/dev.sh",
     "start": "./.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000",
-    "lint": "./.venv/bin/ruff check app tests && ./.venv/bin/ruff format --check app tests",
-    "format": "./.venv/bin/ruff format app tests && ./.venv/bin/ruff check app tests --fix",
-    "test": "./.venv/bin/pytest"
+    "lint": "./.venv/bin/ruff check app tests scripts && ./.venv/bin/ruff format --check app tests scripts",
+    "format": "./.venv/bin/ruff format app tests scripts && ./.venv/bin/ruff check app tests scripts --fix",
+    "test": "./.venv/bin/pytest",
+    "seed": "./.venv/bin/python scripts/seed_neo4j.py"
   }
 }

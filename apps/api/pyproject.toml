@@ -14,10 +14,12 @@ dependencies = [
 llm = [
     "litellm>=1.55",
 ]
-# The real retrieval path.
+# openCypher over Bolt: Neo4j locally, Neptune when deployed.
+graph = [
+    "neo4j>=5.26",
+]
 aws = [
     "boto3>=1.35",
-    "gremlinpython>=3.7",
     "requests-aws4auth>=1.3",
 ]
 dev = [

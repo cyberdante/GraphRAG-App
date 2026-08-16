@@ -63,6 +63,6 @@ class FixtureGraphStore:
             object_type=nodes[link.target].type if link.target in nodes else None,
             subject_label=subject,
             object_label=target,
-            confidence=0.9,
-            source="Supply chain graph",
+            confidence=fixtures.SAMPLE_CONFIDENCE,
+            source=fixtures.SAMPLE_SOURCE,
         )

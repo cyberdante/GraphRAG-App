@@ -81,6 +81,18 @@ class Settings(BaseSettings):
     bedrock_model_id: str = "anthropic.claude-sonnet-5"
     neptune_endpoint: str | None = None
 
+    # openCypher over Bolt. The same adapter addresses a local Neo4j and a
+    # managed Neptune cluster, which both speak Bolt — only the URI differs.
+    # Absent URI means the backend is simply not offered, rather than offered
+    # and broken.
+    # Aliased to the driver's own variable names rather than the RAGSTONE_
+    # prefix, so the values compose.yaml sets and the ones every Neo4j tool
+    # already reads are the same values.
+    neo4j_uri: str | None = Field(default=None, alias="NEO4J_URI")
+    neo4j_user: str = Field(default="neo4j", alias="NEO4J_USER")
+    neo4j_password: str | None = Field(default=None, alias="NEO4J_PASSWORD")
+    neo4j_database: str = Field(default="neo4j", alias="NEO4J_DATABASE")
+
     # Pacing for the fixture stream, in seconds. Set to 0 in tests.
     fixture_token_delay: float = 0.03
 
@@ -90,7 +102,12 @@ class Settings(BaseSettings):
         A key that reaches a log line is a leaked key — logs get shipped,
         aggregated and retained far more widely than anyone intends.
         """
-        SECRETS = {"llm_api_key", "anthropic_api_key", "openai_api_key"}
+        SECRETS = {
+            "llm_api_key",
+            "anthropic_api_key",
+            "openai_api_key",
+            "neo4j_password",
+        }
         dumped = self.model_dump(mode="json")
         return {
             key: ("<set>" if value else None) if key in SECRETS else value

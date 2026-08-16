@@ -7,6 +7,13 @@ exercised end to end before Bedrock and Neptune are wired up in Sprint 2.
 
 from .models import Citation, GraphData, GraphEdge, GraphNode
 
+#: Provenance the sample graph carries. The edges themselves record no
+#: confidence, so every store that serves this graph must attribute it the same
+#: way — otherwise the same fact ranks differently depending on which backend
+#: answered, which is precisely what switchable backends must not mean.
+SAMPLE_SOURCE = "Supply chain graph"
+SAMPLE_CONFIDENCE = 0.9
+
 SUPPLY_CHAIN_GRAPH = GraphData(
     nodes=[
         GraphNode(id="sup_88", label="ITAMCO", type="Supplier", group=1, color="#4CAF50"),

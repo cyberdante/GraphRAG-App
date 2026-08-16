@@ -12,6 +12,7 @@ so `available()` is the honest answer to "what can I ask for?".
 import logging
 
 from ..config import Settings
+from .cypher_store import CypherGraphStore, build_driver
 from .fixture_store import FixtureGraphStore
 from .store import GraphStore, UnknownBackendError
 
@@ -45,11 +46,25 @@ class BackendRegistry:
 def build_registry(settings: Settings) -> BackendRegistry:
     stores: list[GraphStore] = [FixtureGraphStore()]
 
-    # Neptune-backed stores land with their endpoints. Registering a store that
-    # cannot reach anything would make `available()` a promise the service
-    # cannot keep.
+    # A store is registered only when it could actually answer. Registering one
+    # that cannot reach anything would make `available()` a promise the service
+    # cannot keep, and would hand the UI a backend that fails on first use.
+    if settings.neo4j_uri and settings.neo4j_password:
+        try:
+            driver = build_driver(settings.neo4j_uri, settings.neo4j_user, settings.neo4j_password)
+        except ImportError:
+            # The Bolt driver lives in the `graph` extra. A deployment that
+            # configured the URI but did not install it should hear about it
+            # rather than silently serve fixtures.
+            logger.warning(
+                "neo4j_uri is set but the Bolt driver is not installed. "
+                "Install the 'graph' extra to offer the cypher backend."
+            )
+        else:
+            stores.append(CypherGraphStore(driver, settings.neo4j_database))
+
     if settings.neptune_endpoint:
-        logger.info("Neptune endpoint configured, but no adapter is wired yet.")
+        logger.info("Neptune endpoint configured; SPARQL adapter is not wired yet.")
 
     default = settings.default_backend
     names = [store.name for store in stores]

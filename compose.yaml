@@ -1,0 +1,43 @@
+# Local graph stores for development.
+#
+# The service talks to a graph through the `GraphStore` port, so the backend it
+# runs against is a deployment decision rather than a code one. These are the
+# stores a developer runs on their own machine; the same adapters address a
+# managed endpoint by pointing the URI elsewhere.
+#
+#   docker compose up -d neo4j
+#   pnpm --filter @ragstone/api seed
+#
+# Everything binds to 127.0.0.1 on purpose. These containers hold no secrets
+# worth having, but a database that listens on every interface is a habit worth
+# not forming.
+
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: ragstone-neo4j
+    ports:
+      # Bolt, which the driver speaks.
+      - "127.0.0.1:7687:7687"
+      # The browser UI at http://localhost:7474 — useful for seeing what the
+      # adapter is actually matching against.
+      - "127.0.0.1:7474:7474"
+    environment:
+      # Local development credentials. They guard a container of sample
+      # supply-chain data on a loopback port; the deployment supplies its own.
+      NEO4J_AUTH: neo4j/ragstone-dev
+      NEO4J_server_memory_heap_max__size: 512M
+      NEO4J_server_memory_pagecache_size: 256M
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      # The port opens before the database will answer a query, so the check
+      # runs a real one. Compose dependents wait on this rather than on a port.
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ragstone-dev 'RETURN 1' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+volumes:
+  neo4j-data:

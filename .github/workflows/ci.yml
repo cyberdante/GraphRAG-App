@@ -55,8 +55,55 @@ jobs:
 
       - name: Lint
         run: |
-          ruff check app tests
-          ruff format --check app tests
+          ruff check app tests scripts
+          ruff format --check app tests scripts
 
       - name: Test
         run: pytest
+
+  # The store conformance suite skips the openCypher backend when no Bolt
+  # endpoint is reachable, which keeps `pytest` useful on a laptop without
+  # Docker. Somewhere has to actually run it, or "switchable backends" is only
+  # ever asserted against the one store that needs no infrastructure.
+  graph:
+    name: Graph backends
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    services:
+      neo4j:
+        image: neo4j:5.26-community
+        env:
+          NEO4J_AUTH: neo4j/ragstone-dev
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p ragstone-dev 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+          --health-start-period 30s
+    env:
+      NEO4J_URI: bolt://localhost:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ragstone-dev
+      # A skipped test must not pass for the job whose entire purpose is to run
+      # the real store.
+      RAGSTONE_REQUIRE_CYPHER: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[dev,graph]"
+
+      - name: Seed the sample graph
+        run: python scripts/seed_neo4j.py
+
+      - name: Conformance
+        run: pytest tests/test_store_conformance.py -v --no-header

@@ -47,6 +47,24 @@ development.
 To run the frontend alone with no Python at all, copy `apps/web/.env.example`
 to `apps/web/.env.local` and set `VITE_USE_MOCK=true`.
 
+### Running against a graph
+
+The service answers from the bundled fixture graph with nothing configured, so
+none of this is needed to get a working app. To run it against a real store:
+
+```bash
+docker compose up -d neo4j                # openCypher over Bolt, on 7687
+pnpm --filter @ragstone/api seed          # loads the sample graph, idempotent
+```
+
+Then point the service at it — copy `apps/api/.env.example` to `.env.local`,
+uncomment the `NEO4J_*` block, and install the driver with
+`pip install -e ".[graph]"` inside `apps/api`. The backend appears in the
+picker once it is configured; a store that cannot answer is never offered.
+
+The same adapter addresses a managed Neptune cluster, which also speaks Bolt
+and openCypher — the URI changes and nothing else does.
+
 ### Scripts
 
 | Command | What it does |
@@ -59,6 +77,7 @@ to `apps/web/.env.local` and set `VITE_USE_MOCK=true`.
 | `pnpm test:web` / `pnpm test:api` | One suite on its own |
 | `pnpm lint` | Ruff check and format check on the service |
 | `pnpm api:setup` | Create or repair the Python environment |
+| `pnpm --filter @ragstone/api seed` | Load the sample graph into the local store |
 
 ## White-labelling
 
@@ -216,9 +235,14 @@ than tune it.
 
 ## What is real and what is not
 
-Retrieval still answers from the fixture graph in `apps/api/app/fixtures.py`.
-The Neptune SPARQL and openCypher adapters implement the same `GraphStore`
-port and land with their endpoints; nothing downstream changes when they do.
+Retrieval answers from the fixture graph in `apps/api/app/fixtures.py` by
+default, and from a real store over openCypher when one is configured. Both
+implement the same `GraphStore` port, and `tests/test_store_conformance.py`
+runs the same properties against each — including that they describe the same
+graph identically, so the backend cannot quietly change the answer. CI runs
+that suite against a real Neo4j service container.
+
+The SPARQL adapter is next; it reuses the vocabulary in `app/ontology.py`.
 
 Roadmap: https://claude.ai/code/artifact/ca1d6947-831f-492e-9d1f-f7903d4b3f07
 
