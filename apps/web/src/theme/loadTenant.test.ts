@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadTenant, resolveTenantId } from './loadTenant';
 import { acme, meridian } from './tenants';
 
@@ -14,12 +14,27 @@ const failWith = (error: Error) =>
   }) as unknown as typeof fetch;
 
 describe('resolveTenantId', () => {
+  // A developer's .env.local would otherwise decide the answer, so the suite
+  // passes locally and fails in CI, or the reverse.
+  afterEach(() => vi.unstubAllEnvs());
+
   it('prefers the query parameter, so a demo can be linked at a brand', () => {
     expect(resolveTenantId('?tenant=meridian')).toBe('meridian');
   });
 
   it('falls back to the default when nothing is specified', () => {
+    vi.stubEnv('VITE_TENANT', '');
     expect(resolveTenantId('')).toBe(acme.id);
+  });
+
+  it('uses the deployment default when the URL is silent', () => {
+    vi.stubEnv('VITE_TENANT', 'lumen');
+    expect(resolveTenantId('')).toBe('lumen');
+  });
+
+  it('lets the URL override the deployment default', () => {
+    vi.stubEnv('VITE_TENANT', 'lumen');
+    expect(resolveTenantId('?tenant=meridian')).toBe('meridian');
   });
 });
 

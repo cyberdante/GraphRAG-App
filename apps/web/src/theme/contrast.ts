@@ -114,3 +114,40 @@ export function auditContrast(
     }))
     .filter((result) => result.ratio < result.required);
 }
+
+/** Blends two colours in sRGB. Good enough for nudging one until it reads. */
+export function mix(from: string, to: string, amount: number): string {
+  const a = parseColor(from);
+  const b = parseColor(to);
+  const channel = (x: number, y: number) => Math.round(x + (y - x) * amount);
+  const hex = (v: number) => v.toString(16).padStart(2, '0');
+  return `#${hex(channel(a.r, b.r))}${hex(channel(a.g, b.g))}${hex(channel(a.b, b.b))}`;
+}
+
+/**
+ * Nudges a colour until it is legible on a background, away from it.
+ *
+ * Used only for colours *we* derive — chiefly the dark-mode palette. A tenant
+ * authors their brand against a light page; reusing those values unchanged on
+ * a dark surface is our bug, not theirs, so adapting them there is honest.
+ * Their own light-mode colours are still reported rather than altered.
+ */
+export function ensureContrast(
+  color: string,
+  background: string,
+  required = AA_NORMAL,
+): string {
+  if (contrastRatio(color, background) >= required) return color;
+
+  // Move away from the background: toward white if it is dark, else toward black.
+  const target = luminance(background) < 0.5 ? '#FFFFFF' : '#000000';
+
+  const STEPS = 20;
+  for (let step = 1; step <= STEPS; step += 1) {
+    const candidate = mix(color, target, step / STEPS);
+    if (contrastRatio(candidate, background) >= required) return candidate;
+  }
+
+  // Nothing in between worked, so the extreme is the best available.
+  return target;
+}

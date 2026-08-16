@@ -9,7 +9,7 @@
 
 import { createTheme, type Theme, type ThemeOptions } from '@mui/material';
 import type { Tenant, TenantVariants } from '@ragstone/shared';
-import { readableOn } from './contrast';
+import { AA_LARGE, ensureContrast, readableOn } from './contrast';
 
 /** Every Material elevation flattened; borders or nothing carry separation. */
 const NO_SHADOWS = Array(25).fill('none') as ThemeOptions['shadows'];
@@ -31,6 +31,14 @@ export function buildTheme(tenant: Tenant, darkMode: boolean): Theme {
 
   const scale = (rem: number) => `${(rem * density.fontScale).toFixed(3)}rem`;
 
+  // Brand colours are authored against a light page. Used unchanged on a dark
+  // surface they stop being legible as text or borders — an outlined chip in
+  // meridian's slate secondary reached 1.65:1 on the dark panel. Dark mode is
+  // our derivation, so adapting the colour there is our job; the tenant's own
+  // light-mode values stay exactly as they wrote them.
+  const forSurface = (color: string) =>
+    darkMode ? ensureContrast(color, surface, AA_LARGE) : color;
+
   // 'outlined' draws a border; 'flat' draws nothing at all and relies on the
   // surface colour differing from the page.
   const surfaceBorder =
@@ -41,8 +49,14 @@ export function buildTheme(tenant: Tenant, darkMode: boolean): Theme {
       mode: darkMode ? 'dark' : 'light',
       // contrastText is derived, not declared: a tenant supplies a brand
       // colour and gets a readable foreground whatever they pick.
-      primary: { main: palette.primary, contrastText: readableOn(palette.primary) },
-      secondary: { main: palette.secondary, contrastText: readableOn(palette.secondary) },
+      primary: {
+        main: forSurface(palette.primary),
+        contrastText: readableOn(forSurface(palette.primary)),
+      },
+      secondary: {
+        main: forSurface(palette.secondary),
+        contrastText: readableOn(forSurface(palette.secondary)),
+      },
       success: { main: palette.success },
       warning: { main: palette.warning },
       error: { main: palette.error },

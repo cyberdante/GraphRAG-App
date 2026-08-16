@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { AA_LARGE, AA_NORMAL, auditContrast, contrastRatio } from './contrast';
+import { AA_LARGE, AA_NORMAL, auditContrast, contrastRatio, luminance } from './contrast';
 import { buildTheme } from './buildTheme';
 import { graphPalette } from './graphPalette';
 import { DEFAULT_TENANT_ID, TENANTS, TENANT_IDS, resolveTenant } from './tenants';
@@ -54,23 +54,55 @@ describe.each(tenants)('tenant: %s', (_id, tenant) => {
     }
   });
 
-  it('keeps graph labels legible against its own canvas', () => {
-    const theme = buildTheme(tenant, false);
-    const palette = graphPalette(theme, tenant);
-    expect(contrastRatio(palette.label, palette.canvas)).toBeGreaterThanOrEqual(AA_NORMAL);
-  });
+  // These originally ran in light mode only, which is how a dark-mode bug
+  // shipped: meridian's light parchment canvas was kept in dark mode and drawn
+  // on with white ink at 1.17:1, so the edges were invisible.
+  describe.each([false, true])('in %s mode', (darkMode) => {
+    const theme = () => buildTheme(tenant, darkMode);
 
-  it('keeps every node colour distinguishable from the canvas', () => {
-    const theme = buildTheme(tenant, false);
-    const palette = graphPalette(theme, tenant);
+    it('keeps graph labels legible against its own canvas', () => {
+      const palette = graphPalette(theme(), tenant);
+      expect(contrastRatio(palette.label, palette.canvas)).toBeGreaterThanOrEqual(AA_NORMAL);
+    });
 
-    for (const type of Object.keys(tenant.graph.nodeColors)) {
-      // Nodes are large shapes, so the large-text threshold is the right bar.
-      expect(
-        contrastRatio(palette.nodeColor(type), palette.canvas),
-        `${tenant.id}/${type}`,
-      ).toBeGreaterThanOrEqual(AA_LARGE);
-    }
+    it('keeps graph edges visible against its own canvas', () => {
+      const palette = graphPalette(theme(), tenant);
+      // Links are drawn at 40% ink; check the ink itself clears the large bar,
+      // since a translucent stroke can only be worse than its source colour.
+      expect(contrastRatio(palette.label, palette.canvas)).toBeGreaterThanOrEqual(AA_LARGE);
+    });
+
+    it('keeps every node colour distinguishable from the canvas', () => {
+      const palette = graphPalette(theme(), tenant);
+
+      for (const type of Object.keys(tenant.graph.nodeColors)) {
+        // Nodes are large shapes, so the large-text threshold is the right bar.
+        expect(
+          contrastRatio(palette.nodeColor(type), palette.canvas),
+          `${tenant.id}/${type} (${darkMode ? 'dark' : 'light'})`,
+        ).toBeGreaterThanOrEqual(AA_LARGE);
+      }
+    });
+
+    it('never puts a light canvas in a dark app, or the reverse', () => {
+      const palette = graphPalette(theme(), tenant);
+      const canvasIsDark = luminance(palette.canvas) < 0.5;
+      expect(canvasIsDark).toBe(darkMode);
+    });
+
+    it('keeps brand colours usable as text and borders, not just as fills', () => {
+      // The gap that let the unreadable "14 Relationships" chip through: the
+      // audit only checked contrastText *on* a filled brand colour, never the
+      // brand colour used as ink on a surface, which is what an outlined chip
+      // does. Meridian's slate secondary sat at 1.65:1 on the dark panel.
+      const built = theme();
+      for (const role of ['primary', 'secondary'] as const) {
+        expect(
+          contrastRatio(built.palette[role].main, built.palette.background.paper),
+          `${tenant.id} ${role} on panel (${darkMode ? 'dark' : 'light'})`,
+        ).toBeGreaterThanOrEqual(AA_LARGE);
+      }
+    });
   });
 
   it('expresses its declared shape and density in the theme', () => {
