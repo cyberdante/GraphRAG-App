@@ -72,7 +72,13 @@ VITE_TENANT=meridian      →  otherwise the deployment's default
                           →  otherwise the bundled fallback
 ```
 
-Try `?tenant=meridian` or `?tenant=lumen` against the dev server. The three
+In development, a brand switcher appears in the navbar: choosing a brand
+re-themes the running app — palette, corner radius, spacing, type, graph
+colours and wording — without a reload, and keeps the conversation on screen.
+It is off outside development unless `VITE_TENANT_SWITCHER=true`, because a
+client's deployment must never list other people's brands.
+
+You can also link straight at one with `?tenant=meridian` or `?tenant=lumen`. The three
 bundled tenants differ in corner radius, spacing base, type family, node
 colours and wording, because a white-label claim tested against near-identical
 themes proves nothing.

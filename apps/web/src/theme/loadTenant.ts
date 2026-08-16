@@ -112,3 +112,27 @@ export function reportResolution({ tenant, source, issues }: TenantResolution): 
     issues,
   );
 }
+
+/**
+ * Whether this deployment may show the brand switcher.
+ *
+ * Off by default and on in development. A client's own deployment must never
+ * offer a list of other people's brands — that is a leak of exactly the kind
+ * white-labelling exists to prevent — so turning it on is a deliberate act
+ * taken by the demo deployment alone.
+ */
+export function switcherEnabled(): boolean {
+  const flag = import.meta.env.VITE_TENANT_SWITCHER;
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+  return Boolean(import.meta.env.DEV);
+}
+
+/** The brands this build can offer, for the switcher's list. */
+export function availableTenants(): Array<{ id: string; name: string; color: string }> {
+  return Object.values(TENANTS).map((tenant) => ({
+    id: tenant.id,
+    name: tenant.brand.name,
+    color: tenant.palette.primary,
+  }));
+}

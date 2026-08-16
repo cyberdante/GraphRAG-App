@@ -26,6 +26,8 @@ import {
 
 interface NavbarProps {
   brand: TenantBrand;
+  /** Optional control rendered before the theme toggle. */
+  switcher?: React.ReactNode;
   onMenuClick: () => void;
   darkMode: boolean;
   onThemeToggle: () => void;
@@ -38,7 +40,8 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  brand, 
+  brand,
+  switcher, 
   onMenuClick, 
   darkMode, 
   onThemeToggle, 
@@ -117,6 +120,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             {brand.name}
           </Typography>
         </Box>
+
+        {switcher}
 
         {/* Theme Toggle */}
         <IconButton

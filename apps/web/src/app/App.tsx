@@ -1,11 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Box, CssBaseline, Snackbar, ThemeProvider } from '@mui/material';
-import { buildTheme } from '@/theme';
+import {
+  availableTenants,
+  buildTheme,
+  loadTenant,
+  reportResolution,
+  switcherEnabled,
+} from '@/theme';
 import { Navbar } from './components/Navbar';
 import { QueryInput } from './components/QueryInput';
 import { StreamingResponse } from './components/StreamingResponse';
 import { D3GraphVisualization } from './components/D3GraphVisualization';
 import { QueryHistory } from './components/QueryHistory';
+import { TenantSwitcher } from './components/TenantSwitcher';
 import { createClient } from '@/api/client';
 import {
   exportConversationToPDF,
@@ -33,7 +40,7 @@ const MAX_HISTORY_ITEMS = 200;
 const newId = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
-function AppContent({ tenant }: { tenant: Tenant }) {
+function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
   const [darkMode, setDarkMode] = useState(() => readString('ragstone-theme') === 'dark');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -47,7 +54,29 @@ function AppContent({ tenant }: { tenant: Tenant }) {
   const abortRef = useRef<AbortController | null>(null);
   const hydrated = useRef(false);
 
+  // The tenant is state, not a constant: switching brands must re-theme in
+  // place. A reload would also work, but rebranding without one is the whole
+  // claim being demonstrated.
+  const [tenant, setTenant] = useState(initialTenant);
+  const [switchingTenant, setSwitchingTenant] = useState(false);
   const theme = useMemo(() => buildTheme(tenant, darkMode), [tenant, darkMode]);
+
+  const handleTenantChange = useCallback(async (id: string) => {
+    setSwitchingTenant(true);
+    try {
+      const resolution = await loadTenant(id);
+      reportResolution(resolution);
+      setTenant(resolution.tenant);
+
+      // Keep the URL honest, so the current view stays shareable. replaceState
+      // rather than push: brand previews are not navigation history.
+      const url = new URL(window.location.href);
+      url.searchParams.set('tenant', id);
+      window.history.replaceState({}, '', url);
+    } finally {
+      setSwitchingTenant(false);
+    }
+  }, []);
 
 
   // Restore the last session.
@@ -301,6 +330,16 @@ function AppContent({ tenant }: { tenant: Tenant }) {
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%' }}>
         <Navbar
           brand={tenant.brand}
+          switcher={
+            switcherEnabled() ? (
+              <TenantSwitcher
+                options={availableTenants()}
+                currentId={tenant.id}
+                onSelect={(id) => void handleTenantChange(id)}
+                busy={switchingTenant}
+              />
+            ) : undefined
+          }
           onMenuClick={() => setSidebarOpen(true)}
           darkMode={darkMode}
           onThemeToggle={() => setDarkMode((previous) => !previous)}
