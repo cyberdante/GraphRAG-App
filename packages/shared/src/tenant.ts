@@ -81,6 +81,23 @@ export interface TenantGraph {
   background?: string;
 }
 
+/**
+ * User-facing copy that is not the product's to write.
+ *
+ * A tenant in pharma should not be asked about supply chains, and no client
+ * should be welcomed to somebody else's product name. Colour was the obvious
+ * white-label surface; wording is the one that gets missed, and it is the more
+ * embarrassing of the two when it leaks into an export.
+ */
+export interface TenantCopy {
+  /** Composer placeholder. Names the tenant's domain, not ours. */
+  inputPlaceholder: string;
+  /** One line under the welcome heading on an empty conversation. */
+  welcome: string;
+  /** Example questions offered before anything has been asked. */
+  starters: string[];
+}
+
 export interface Tenant {
   id: string;
   brand: TenantBrand;
@@ -88,5 +105,6 @@ export interface Tenant {
   shape: TenantShape;
   density: TenantDensity;
   typography: TenantTypography;
+  copy: TenantCopy;
   graph: TenantGraph;
 }

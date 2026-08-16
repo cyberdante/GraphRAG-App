@@ -46,6 +46,12 @@ function AppContent() {
   const abortRef = useRef<AbortController | null>(null);
   const hydrated = useRef(false);
 
+  // Which brand this instance wears. `?tenant=` selects it for now; item 73
+  // replaces that with a fetched document, and item 76 with a switcher.
+  const tenant = useMemo(() => resolveTenant(), []);
+  const theme = useMemo(() => buildTheme(tenant, darkMode), [tenant, darkMode]);
+
+
   // Restore the last session.
   useEffect(() => {
     setQueryHistory(readJson<QueryHistoryItem[]>(HISTORY_KEY, []));
@@ -87,6 +93,12 @@ function AppContent() {
   useEffect(() => {
     writeString('graphrag-theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
+
+  // The browser tab is the most-seen piece of branding, and index.html cannot
+  // know which tenant is rendering.
+  useEffect(() => {
+    document.title = tenant.brand.name;
+  }, [tenant]);
 
   const handleNewChat = useCallback(() => {
     abortRef.current?.abort();
@@ -269,13 +281,13 @@ function AppContent() {
   const noGraph = graphData.nodes.length === 0;
 
   const handleExportPDF = guard(noMessages, 'There is no conversation to export yet.', () =>
-    exportConversationToPDF(messages, currentConversationId),
+    exportConversationToPDF(messages, currentConversationId, tenant.brand.name),
   );
   const handleExportCSV = guard(noMessages, 'There is no conversation to export yet.', () =>
     exportConversationToCSV(messages, currentConversationId),
   );
   const handleExportGraphPDF = guard(noGraph, 'There is no graph to export yet.', () =>
-    exportGraphToPDF(graphData, currentConversationId),
+    exportGraphToPDF(graphData, currentConversationId, tenant.brand.name),
   );
   const handleExportGraphCSV = guard(noGraph, 'There is no graph to export yet.', () =>
     exportGraphToCSV(graphData, currentConversationId),
@@ -284,10 +296,6 @@ function AppContent() {
     exportGraphToJsonLD(graphData, currentConversationId),
   );
 
-  // Which brand this instance wears. `?tenant=` selects it for now; item 73
-  // replaces that with a fetched document, and item 76 with a switcher.
-  const tenant = useMemo(() => resolveTenant(), []);
-  const theme = useMemo(() => buildTheme(tenant, darkMode), [tenant, darkMode]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -337,12 +345,15 @@ function AppContent() {
                   isStreaming={isStreaming}
                   currentStatus={currentStatus}
                   onRetry={handleRetry}
+                  brand={tenant.brand}
+                  copy={tenant.copy}
                 />
               </Box>
               <QueryInput
                 onSubmit={handleQuery}
                 onStop={handleStop}
                 isStreaming={isStreaming}
+                placeholder={tenant.copy.inputPlaceholder}
               />
             </Box>
 

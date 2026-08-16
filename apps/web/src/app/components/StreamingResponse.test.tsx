@@ -2,7 +2,11 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { Message } from '@/types';
+import { acme } from '@/theme';
 import { StreamingResponse } from './StreamingResponse';
+
+/** The default tenant supplies brand and copy; tests care about neither. */
+const tenantProps = { brand: acme.brand, copy: acme.copy };
 
 const message = (overrides: Partial<Message> = {}): Message => ({
   id: 'm1',
@@ -14,15 +18,16 @@ const message = (overrides: Partial<Message> = {}): Message => ({
 
 describe('StreamingResponse', () => {
   it('shows the empty state with starter prompts before anything is asked', () => {
-    render(<StreamingResponse messages={[]} isStreaming={false} />);
-    expect(screen.getByText(/Welcome to GraphRAG Console/)).toBeInTheDocument();
-    expect(screen.getByText(/Which suppliers are at risk/)).toBeInTheDocument();
+    render(<StreamingResponse {...tenantProps} messages={[]} isStreaming={false} />);
+    expect(screen.getByText(`Welcome to ${acme.brand.name}`)).toBeInTheDocument();
+    expect(screen.getByText(acme.copy.starters[0]!)).toBeInTheDocument();
   });
 
   it('renders a user message as plain text, not markdown', () => {
     // Asterisks a user typed are theirs, and must survive verbatim.
     render(
       <StreamingResponse
+        {...tenantProps}
         messages={[message({ role: 'user', content: 'why **this**?' })]}
         isStreaming={false}
       />,
@@ -49,6 +54,7 @@ describe('StreamingResponse', () => {
     const renderAnswer = () =>
       render(
         <StreamingResponse
+          {...tenantProps}
           messages={[message({ content: markdown, status: 'complete' })]}
           isStreaming={false}
         />,
@@ -87,6 +93,7 @@ describe('StreamingResponse', () => {
   it('lists citations with their confidence', () => {
     render(
       <StreamingResponse
+        {...tenantProps}
         messages={[
           message({
             content: 'Answer.',
@@ -108,6 +115,7 @@ describe('StreamingResponse', () => {
     const onRetry = vi.fn();
     render(
       <StreamingResponse
+        {...tenantProps}
         messages={[message({ status: 'error', error: 'The service returned 503.' })]}
         isStreaming={false}
         onRetry={onRetry}
@@ -122,6 +130,7 @@ describe('StreamingResponse', () => {
   it('marks a stopped answer, keeping whatever text arrived', () => {
     render(
       <StreamingResponse
+        {...tenantProps}
         messages={[message({ content: 'Partial ans', status: 'stopped' })]}
         isStreaming={false}
       />,
@@ -133,6 +142,7 @@ describe('StreamingResponse', () => {
   it('shows the current retrieval stage while streaming', () => {
     render(
       <StreamingResponse
+        {...tenantProps}
         messages={[message({ content: 'partial', status: 'streaming' })]}
         isStreaming
         currentStatus="Querying knowledge graph..."

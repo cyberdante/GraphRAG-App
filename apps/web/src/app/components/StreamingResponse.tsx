@@ -20,6 +20,7 @@ import {
 } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import type { TenantBrand, TenantCopy } from '@graphrag/shared';
 import type { Message } from '@/types';
 
 interface StreamingResponseProps {
@@ -27,6 +28,8 @@ interface StreamingResponseProps {
   isStreaming: boolean;
   currentStatus?: string;
   onRetry?: () => void;
+  brand: TenantBrand;
+  copy: TenantCopy;
 }
 
 export const StreamingResponse: React.FC<StreamingResponseProps> = ({
@@ -34,6 +37,8 @@ export const StreamingResponse: React.FC<StreamingResponseProps> = ({
   isStreaming,
   currentStatus,
   onRetry,
+  brand,
+  copy,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +58,7 @@ export const StreamingResponse: React.FC<StreamingResponseProps> = ({
           gap: 2,
         }}
       >
-        {messages.length === 0 && !isStreaming && <EmptyState />}
+        {messages.length === 0 && !isStreaming && <EmptyState brand={brand} copy={copy} />}
 
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} onRetry={onRetry} />
@@ -77,7 +82,7 @@ export const StreamingResponse: React.FC<StreamingResponseProps> = ({
   );
 };
 
-const EmptyState: React.FC = () => (
+const EmptyState: React.FC<{ brand: TenantBrand; copy: TenantCopy }> = ({ brand, copy }) => (
   <Box
     sx={{
       display: 'flex',
@@ -91,20 +96,19 @@ const EmptyState: React.FC = () => (
   >
     <PsychologyIcon sx={{ fontSize: 80, opacity: 0.3 }} />
     <Typography variant="h6" align="center">
-      Welcome to GraphRAG Console
+      Welcome to {brand.name}
     </Typography>
     <Typography variant="body2" align="center" sx={{ maxWidth: 500 }}>
-      Ask questions about your supply chain data. I&apos;ll analyze the knowledge graph and provide
-      insights with citations and visual representations.
+      {copy.welcome}
     </Typography>
     <Stack
       direction="row"
       spacing={1}
       sx={{ mt: 2, flexWrap: 'wrap', justifyContent: 'center', gap: 1 }}
     >
-      <Chip label="Try: Which suppliers are at risk?" size="small" variant="outlined" />
-      <Chip label="Try: Show shipment status" size="small" variant="outlined" />
-      <Chip label="Try: What are the inventory levels?" size="small" variant="outlined" />
+      {copy.starters.map((starter) => (
+        <Chip key={starter} label={starter} size="small" variant="outlined" />
+      ))}
     </Stack>
   </Box>
 );

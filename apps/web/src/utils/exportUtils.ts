@@ -2,12 +2,16 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Message, GraphData } from '@/types';
 
-export const exportConversationToPDF = (messages: Message[], conversationId: string) => {
+export const exportConversationToPDF = (
+  messages: Message[],
+  conversationId: string,
+  brandName = 'Conversation',
+) => {
   const doc = new jsPDF();
   
   // Add title
   doc.setFontSize(18);
-  doc.text('GraphRAG Conversation Export', 14, 20);
+  doc.text(`${brandName} — Conversation Export`, 14, 20);
   
   // Add conversation ID and date
   doc.setFontSize(10);
@@ -160,12 +164,16 @@ export const exportGraphToJsonLD = (graphData: GraphData, conversationId: string
   document.body.removeChild(link);
 };
 
-export const exportGraphToPDF = (graphData: GraphData, conversationId: string) => {
+export const exportGraphToPDF = (
+  graphData: GraphData,
+  conversationId: string,
+  brandName = 'Knowledge Graph',
+) => {
   const doc = new jsPDF();
   
   // Add title
   doc.setFontSize(18);
-  doc.text('Knowledge Graph Export', 14, 20);
+  doc.text(`${brandName} — Knowledge Graph Export`, 14, 20);
   
   // Add metadata
   doc.setFontSize(10);

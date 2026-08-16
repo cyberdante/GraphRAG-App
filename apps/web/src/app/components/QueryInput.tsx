@@ -22,13 +22,14 @@ import {
 } from '@mui/icons-material';
 
 interface QueryInputProps {
+  placeholder: string;
   onSubmit: (query: string, files?: File[], urls?: string[], entityIds?: string[]) => void;
   /** Cancels the answer in flight. */
   onStop?: () => void;
   isStreaming?: boolean;
 }
 
-export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStreaming }) => {
+export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStreaming, placeholder }) => {
   const disabled = isStreaming;
   const [query, setQuery] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -144,7 +145,7 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask a question about your supply chain..."
+          placeholder={placeholder}
           disabled={disabled}
           variant="outlined"
           sx={{

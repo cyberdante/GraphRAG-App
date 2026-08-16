@@ -39,6 +39,16 @@ export const acme: Tenant = {
     buttonTextTransform: 'none',
     letterSpacing: '0',
   },
+  copy: {
+    inputPlaceholder: 'Ask a question about your supply chain...',
+    welcome:
+      'Ask questions about your supply chain data. Answers are grounded in the knowledge graph, with citations and the subgraph they came from.',
+    starters: [
+      'Which suppliers are at risk?',
+      'Show shipment status',
+      'What are the inventory levels?',
+    ],
+  },
   graph: {
     nodeColors: {
       Supplier: '#2E7D32',
@@ -71,6 +81,16 @@ export const meridian: Tenant = {
     headingWeight: 700,
     buttonTextTransform: 'uppercase',
     letterSpacing: '0.06em',
+  },
+  copy: {
+    inputPlaceholder: 'Ask about suppliers, shipments or risk...',
+    welcome:
+      'Interrogate the logistics graph. Every answer cites the records it was drawn from.',
+    starters: [
+      'Which suppliers are behind schedule?',
+      'Where is shipment #2401?',
+      'What is driving the delay risk?',
+    ],
   },
   graph: {
     nodeColors: {
@@ -105,6 +125,16 @@ export const lumen: Tenant = {
     headingWeight: 600,
     buttonTextTransform: 'none',
     letterSpacing: '0',
+  },
+  copy: {
+    inputPlaceholder: 'What would you like to know?',
+    welcome:
+      'A research assistant over your knowledge graph. Ask in plain language; every claim is traceable to its source.',
+    starters: [
+      'Summarise the current risks',
+      'How are these entities connected?',
+      'What changed this quarter?',
+    ],
   },
   graph: {
     nodeColors: {
