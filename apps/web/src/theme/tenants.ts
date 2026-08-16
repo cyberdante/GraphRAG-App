@@ -19,10 +19,17 @@ const SEMANTIC = {
   error: '#C62828',
 } as const;
 
-/** The default look: Material, blue, familiar. */
+/**
+ * The default look: Material, blue, familiar.
+ *
+ * Named as an obvious placeholder on purpose. The product has no name a user
+ * can see — the one in the navbar always belongs to a tenant — so the default
+ * tenant should announce that it is a sample rather than quietly look like the
+ * product's own branding.
+ */
 export const acme: Tenant = {
   id: 'acme',
-  brand: { name: 'GraphRAG Console', initials: 'GR' },
+  brand: { name: 'Acme Corp', initials: 'AC' },
   palette: {
     primary: '#1976d2',
     secondary: '#dc004e',

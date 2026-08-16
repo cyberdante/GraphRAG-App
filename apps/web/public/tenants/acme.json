@@ -1,8 +1,8 @@
 {
   "id": "acme",
   "brand": {
-    "name": "GraphRAG Console",
-    "initials": "GR"
+    "name": "Acme Corp",
+    "initials": "AC"
   },
   "palette": {
     "primary": "#1976d2",
