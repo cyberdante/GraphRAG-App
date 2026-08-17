@@ -61,6 +61,44 @@ jobs:
       - name: Test
         run: pytest
 
+  # What the unit suites cannot see. jsdom does no layout and has no opinion
+  # about perception, so a drawer opening behind the app bar and text at 4.19:1
+  # both pass it — and both did, until a person noticed.
+  #
+  # Runs inside the same image the baselines were photographed in. Font
+  # rasterisation differs between distributions, let alone between Linux and
+  # macOS, so a screenshot compared across environments fails for reasons that
+  # are not regressions. Pinning the image is what makes the comparison mean
+  # something.
+  appearance:
+    name: Appearance and accessibility
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install
+        working-directory: .
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Browser checks
+        run: pnpm e2e
+
+      # Without this a visual failure is a red tick and nothing to look at.
+      - name: Upload the report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
   # The store conformance suite skips the openCypher backend when no Bolt
   # endpoint is reachable, which keeps `pytest` useful on a laptop without
   # Docker. Somewhere has to actually run it, or "switchable backends" is only

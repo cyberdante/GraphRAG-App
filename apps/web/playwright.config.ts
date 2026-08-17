@@ -23,7 +23,12 @@ export default defineConfig({
   reporter: process.env.CI ? [['github'], ['list']] : [['list']],
 
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    // An external server can be supplied instead, which is how the Linux
+    // baselines are produced: the app is built on the host, then served and
+    // photographed inside the same container image CI uses. Font rasterisation
+    // differs between macOS and Linux, so a baseline taken on a laptop fails
+    // in CI for reasons that are not regressions.
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173',
     // A failure here is visual by definition, so keep the evidence.
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
@@ -49,7 +54,8 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
+  // Skipped when a server is already provided.
+  webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : {
     // Serves the production build rather than the dev server: the bundle the
     // tests look at should be the bundle a reader gets.
     // --host 127.0.0.1 explicitly: vite preview otherwise binds "localhost",

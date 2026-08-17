@@ -9,9 +9,15 @@ Every one passed the unit suite and always would have — jsdom does no layout a
 has no opinion about perception.
 
 ```bash
-pnpm e2e            # run
-pnpm e2e:update     # accept new screenshots
+pnpm e2e              # run everything
+pnpm e2e:baselines    # regenerate screenshots in the CI container
 ```
+
+Regenerate baselines through `pnpm e2e:baselines`, never `--update-snapshots`
+directly: the script builds on the host and photographs inside
+`mcr.microsoft.com/playwright:v1.62.1-noble`, which is the image CI runs in.
+Screenshots taken on macOS differ from it in font rasterisation and fail there
+for reasons that are not regressions.
 
 Runs against the production build with `VITE_USE_MOCK=true`, so it needs no
 Python, no database and no key. The mock client answers from a fixed script,
@@ -32,6 +38,17 @@ earlier session serves the build it started with, so a source change appears to
 have no effect. This cost real time; if a result looks impossible, kill whatever
 holds port 4173 and run again. CI always builds fresh.
 
-**Screenshots are platform-specific.** Font rasterisation differs between macOS
-and Linux, so baselines are generated in the same container CI uses rather than
-on a developer's machine. See the `visual` job in `.github/workflows/ci.yml`.
+**Screenshots are platform-specific.** Baselines are generated in the same
+container CI uses — see the `appearance` job in `.github/workflows/ci.yml`.
+
+**The build pins every flag the screenshots depend on.** Vite loads `.env.local`
+for production builds as well as dev, so a developer's local file would
+otherwise decide what a baseline contains: mine enabled the tenant switcher, and
+CI — which has no such file — would have differed on every single screenshot.
+`build:mock` sets `VITE_USE_MOCK`, `VITE_TENANT_SWITCHER` and `VITE_TENANT`
+explicitly for that reason.
+
+**The graph is masked, not skipped.** d3's force layout seeds from arrival order
+and jiggles coincident nodes with `Math.random()`, so its pixels differ between
+runs. Its structure is asserted in the unit suite by element count and identity,
+and its colours by the contrast checks.

@@ -1,12 +1,6 @@
 import { expect, test } from '@playwright/test';
-import {
-  MODES,
-  TENANTS,
-  askAQuestion,
-  expectNoAccessibilityViolations,
-  openConsole,
-  settle,
-} from './support';
+import { expectNoAccessibilityViolations } from './axe';
+import { MODES, TENANTS, askAQuestion, openConsole, settle } from './support';
 
 /**
  * The checks that would have caught what a person caught instead.
