@@ -93,6 +93,10 @@ class Settings(BaseSettings):
     neo4j_password: str | None = Field(default=None, alias="NEO4J_PASSWORD")
     neo4j_database: str = Field(default="neo4j", alias="NEO4J_DATABASE")
 
+    # How many URLs one question may pull in. Each is a fetch the service makes
+    # on a client's behalf, so the cap is a rate limit as much as a budget.
+    max_urls_per_query: int = 3
+
     # Pacing for the fixture stream, in seconds. Set to 0 in tests.
     fixture_token_delay: float = 0.03
 

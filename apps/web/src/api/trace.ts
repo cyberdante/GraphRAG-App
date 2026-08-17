@@ -31,6 +31,8 @@ export interface QueryTrace {
   usage?: UsagePayload;
   model?: string;
   backend?: string;
+  /** Things the pipeline declined to do, and why. */
+  notes?: string[];
   candidates?: number;
 }
 
@@ -46,7 +48,7 @@ export class TraceRecorder {
   private readonly startedAt: number;
   private readonly phases: TracePhase[] = [];
   private firstTokenAt?: number;
-  private summary: Pick<QueryTrace, 'usage' | 'model' | 'backend' | 'candidates'> = {};
+  private summary: Pick<QueryTrace, 'usage' | 'model' | 'backend' | 'candidates' | 'notes'> = {};
 
   constructor(private readonly now: () => number = () => performance.now()) {
     this.startedAt = now();
@@ -70,6 +72,7 @@ export class TraceRecorder {
       ...(done.usage ? { usage: done.usage } : {}),
       ...(done.model ? { model: done.model } : {}),
       ...(done.backend ? { backend: done.backend } : {}),
+      ...(done.notes?.length ? { notes: done.notes } : {}),
       ...(done.candidates !== undefined ? { candidates: done.candidates } : {}),
     };
   }

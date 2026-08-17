@@ -136,6 +136,10 @@ class DonePayload(BaseModel):
     backend: str | None = None
     #: Retrieved before ranking, so the trace shows what was considered.
     candidates: int | None = None
+    #: Things the pipeline declined to do, and why — a URL it would not fetch,
+    #: most often. Collected and never reported is the same as not checking:
+    #: the refusal has to reach the person who attached the thing.
+    notes: list[str] | None = None
 
 
 class ErrorPayload(BaseModel):

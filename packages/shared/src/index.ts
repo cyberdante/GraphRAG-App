@@ -155,6 +155,12 @@ export interface DonePayload {
   backend?: string;
   /** How many candidates were retrieved before ranking cut them down. */
   candidates?: number;
+  /**
+   * Things the pipeline declined to do, and why — a URL it would not fetch,
+   * most often. Reported rather than only logged: a refusal the person who
+   * attached the thing never sees is the same as not checking.
+   */
+  notes?: string[];
 }
 
 export interface ErrorPayload {

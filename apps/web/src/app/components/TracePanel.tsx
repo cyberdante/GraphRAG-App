@@ -123,6 +123,19 @@ export const TracePanel: React.FC<TracePanelProps> = ({ trace }) => {
             );
           })}
 
+          {trace.notes?.length ? (
+            <Box sx={{ mb: 1.5 }}>
+              {/* A refusal belongs with the answer, not only in a log. Someone
+                  who attached a URL and got an answer without it needs to know
+                  the answer does not include it. */}
+              {trace.notes.map((note) => (
+                <Typography key={note} variant="caption" color="warning.main" sx={{ display: 'block' }}>
+                  {note}
+                </Typography>
+              ))}
+            </Box>
+          ) : null}
+
           <Divider sx={{ my: 1.5 }} />
 
           <Stack spacing={0.5}>

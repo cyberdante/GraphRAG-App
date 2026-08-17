@@ -10,9 +10,11 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 
-from .attachments import AttachmentStore
+from .attachments import Attachment, AttachmentStore
 from .attachments import as_candidates as attachment_candidates
 from .config import Settings
+from .fetching import FetchRejected
+from .fetching import fetch as fetch_url
 from .llm.context import citations_for, render_context
 from .llm.generator import AnswerGenerator
 from .models import (
@@ -101,9 +103,33 @@ async def stream_answer(
         # go through the same scoring, the same rerank and the same citation
         # numbering. Appended rather than prepended: an attachment does not
         # outrank the graph by virtue of being attached, it competes.
+        notes: list[str] = []
         attached = attachments.resolve(request.input.files or []) if attachments else []
         if attached:
             candidates.extend(attachment_candidates(attached, keywords))
+
+        # Pages a question was asked about, fetched under the SSRF guard in
+        # `fetching.py`. A URL that cannot be fetched is reported and skipped
+        # rather than failing the question: the graph can usually still answer,
+        # and a refusal is more useful attached to the answer than instead of it.
+        for url in (request.input.urls or [])[: settings.max_urls_per_query]:
+            try:
+                page = await fetch_url(url)
+            except FetchRejected as rejected:
+                logger.info("Refused URL %r: %s", rejected.url, rejected.reason)
+                notes.append(f"{rejected.url} was not fetched: {rejected.reason}")
+                continue
+
+            candidates.extend(
+                attachment_candidates(
+                    [
+                        Attachment(
+                            id=page.url, name=page.title, bytes_=len(page.text), text=page.text
+                        )
+                    ],
+                    keywords,
+                )
+            )
 
         # A first frame from what came back unranked, so the visualization has
         # something to draw while ranking runs.
@@ -210,6 +236,7 @@ async def stream_answer(
                 model=getattr(generator, "model_name", generator.name),
                 backend=store.name,
                 candidates=len(candidates),
+                notes=notes or None,
             ),
         )
 
