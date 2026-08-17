@@ -5,6 +5,10 @@ description = "GraphRAG service: streams answers from Bedrock over a Neptune kno
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
+    # Multipart form parsing, which is how a file upload arrives. FastAPI needs
+    # it present to declare an UploadFile at all, so it is a hard dependency
+    # rather than an extra.
+    "python-multipart>=0.0.9",
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
@@ -52,6 +56,8 @@ extend-immutable-calls = [
     "fastapi.Path",
     "fastapi.Body",
     "fastapi.Header",
+    "fastapi.File",
+    "fastapi.Form",
 ]
 
 [tool.pytest.ini_options]

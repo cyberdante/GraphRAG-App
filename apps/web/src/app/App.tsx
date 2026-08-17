@@ -249,7 +249,10 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
   }, []);
 
   const handleQuery = useCallback(
-    async (query: string, files?: File[], urls?: string[], entityIds?: string[]) => {
+    // `files` is attachment ids now, not File objects: the composer uploads on
+    // selection so a rejection is visible while there is still time to act, and
+    // only what actually arrived reaches the request.
+    async (query: string, files?: string[], urls?: string[], entityIds?: string[]) => {
       if (!query.trim() || isStreaming) return;
 
       const controller = new AbortController();
@@ -303,7 +306,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
         messages: history,
         input: {
           text: query,
-          files: files?.map((file) => file.name),
+          files,
           urls,
           entityIds,
         },

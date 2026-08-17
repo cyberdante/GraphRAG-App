@@ -76,6 +76,22 @@ class BackendInfo(BaseModel):
     default: bool
 
 
+class AttachmentInfo(BaseModel):
+    """One uploaded document, or one refusal.
+
+    A rejection is reported here rather than as a 4xx: uploading four files
+    where one is a video should attach three and say why the fourth did not.
+    """
+
+    id: str
+    name: str
+    bytes: int
+    characters: int
+    status: Literal["ready", "rejected"]
+    #: Why it was refused, in words a person can act on. Absent when ready.
+    detail: str | None = None
+
+
 class QueryInputPayload(BaseModel):
     text: str
     files: list[str] | None = None

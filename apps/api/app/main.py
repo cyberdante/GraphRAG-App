@@ -1,18 +1,27 @@
 import logging
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+from .attachments import AttachmentRejected, AttachmentStore
 from .config import Settings, get_settings
 from .llm.generator import AnswerGenerator
 from .llm.registry import build_generator
-from .models import BackendInfo, QueryRequest
+from .models import AttachmentInfo, BackendInfo, QueryRequest
 from .retrieval.registry import BackendRegistry, build_registry
 from .retrieval.store import UnknownBackendError
 from .streaming import stream_answer
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+#: One store for the process, deliberately not per request. Attachments outlive
+#: the upload that created them — a question is asked about them afterwards —
+#: and holding them in memory means nothing lands on disk. Per-process is the
+#: trade: with several workers an upload may land on one and be asked for on
+#: another. A deployment that meant it would use object storage.
+attachment_store = AttachmentStore()
 
 app = FastAPI(
     title="Ragstone API",
@@ -77,6 +86,50 @@ async def backends(registry: BackendRegistry = Depends(get_registry)) -> list[Ba
     ]
 
 
+@app.post("/api/attachments", response_model=list[AttachmentInfo])
+async def upload_attachments(files: list[UploadFile] = File(...)) -> list[AttachmentInfo]:
+    """Accept documents a question can then be asked about.
+
+    Each file is reported on individually. Uploading four documents where one is
+    a video should attach three and say why the fourth did not, rather than
+    rejecting the batch — so a rejection is a 200 with a status, not a 4xx.
+    """
+    results: list[AttachmentInfo] = []
+
+    for upload in files:
+        name = upload.filename or "unnamed"
+        try:
+            raw = await upload.read()
+            stored = attachment_store.add(name, raw)
+        except AttachmentRejected as rejected:
+            logger.info("Rejected attachment %r: %s", rejected.name, rejected.reason)
+            results.append(
+                AttachmentInfo(
+                    id="",
+                    name=name,
+                    bytes=0,
+                    characters=0,
+                    status="rejected",
+                    detail=rejected.reason,
+                )
+            )
+            continue
+        finally:
+            await upload.close()
+
+        results.append(
+            AttachmentInfo(
+                id=stored.id,
+                name=stored.name,
+                bytes=stored.bytes_,
+                characters=stored.characters,
+                status="ready",
+            )
+        )
+
+    return results
+
+
 @app.post("/api/query")
 async def query(
     request: QueryRequest,
@@ -98,7 +151,7 @@ async def query(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
     return StreamingResponse(
-        stream_answer(request, settings, registry, generator),
+        stream_answer(request, settings, registry, generator, attachment_store),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache, no-transform",

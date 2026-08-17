@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import {
+  nextLocalId,
+  readyIds,
+  uploadAttachments,
+  type AttachmentState,
+} from '@/api/attachments';
+import {
   Box,
+  CircularProgress,
   TextField,
   IconButton,
   Paper,
@@ -18,12 +25,14 @@ import {
   Link as LinkIcon,
   Tag as TagIcon,
   MoreVert as MoreVertIcon,
-  Stop as StopIcon
+  Stop as StopIcon,
+  ErrorOutline as ErrorOutlineIcon,
 } from '@mui/icons-material';
 
 interface QueryInputProps {
   placeholder: string;
-  onSubmit: (query: string, files?: File[], urls?: string[], entityIds?: string[]) => void;
+  /** `files` carries attachment ids from the upload, not names. */
+  onSubmit: (query: string, files?: string[], urls?: string[], entityIds?: string[]) => void;
   /** Cancels the answer in flight. */
   onStop?: () => void;
   isStreaming?: boolean;
@@ -32,14 +41,19 @@ interface QueryInputProps {
 export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStreaming, placeholder }) => {
   const disabled = isStreaming;
   const [query, setQuery] = useState('');
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<AttachmentState[]>([]);
   const [urls, setUrls] = useState<string[]>([]);
   const [entityIds, setEntityIds] = useState<string[]>([]);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
+  // Only what actually arrived. Sending an id for a rejected file would ask
+  // the service to answer from a document it never received.
+  const attached = readyIds(files);
+  const uploading = files.some((file) => file.status === 'uploading');
+
   const handleSubmit = () => {
-    if (query.trim() || files.length > 0 || urls.length > 0 || entityIds.length > 0) {
-      onSubmit(query, files, urls, entityIds);
+    if (query.trim() || attached.length > 0 || urls.length > 0 || entityIds.length > 0) {
+      onSubmit(query, attached, urls, entityIds);
       setQuery('');
       setFiles([]);
       setUrls([]);
@@ -54,10 +68,31 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFiles(prev => [...prev, ...Array.from(e.target.files!)]);
-    }
+  // Uploaded on selection rather than on submit, so a rejection is visible
+  // while there is still time to do something about it.
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const chosen = Array.from(e.target.files ?? []).map((file) => ({
+      file,
+      localId: nextLocalId(),
+    }));
+    if (chosen.length === 0) return;
+
+    // Reset the input so choosing the same file twice still fires a change.
+    e.target.value = '';
+
+    setFiles((prev) => [
+      ...prev,
+      ...chosen.map(({ file, localId }) => ({
+        status: 'uploading' as const,
+        name: file.name,
+        localId,
+      })),
+    ]);
+
+    const results = await uploadAttachments(chosen);
+    setFiles((prev) =>
+      prev.map((item) => results.find((result) => result.localId === item.localId) ?? item),
+    );
   };
 
   const handleAddUrl = () => {
@@ -100,13 +135,35 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
       {(files.length > 0 || urls.length > 0 || entityIds.length > 0) && (
         <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
           {files.map((file, index) => (
-            <Chip
-              key={`file-${index}`}
-              label={file.name}
-              onDelete={() => removeFile(index)}
-              icon={<AttachFileIcon />}
-              color="primary"
-            />
+            <Tooltip
+              key={file.localId}
+              title={
+                file.status === 'rejected'
+                  ? file.detail
+                  : file.status === 'ready'
+                    ? `${file.characters.toLocaleString()} characters attached`
+                    : 'Uploading…'
+              }
+              describeChild
+            >
+              <Chip
+                label={file.status === 'rejected' ? `${file.name} — not attached` : file.name}
+                onDelete={() => removeFile(index)}
+                // The icon carries the state as well as the colour: a reader who
+                // cannot separate the hues still sees a spinner, a paperclip or
+                // a warning.
+                icon={
+                  file.status === 'uploading' ? (
+                    <CircularProgress size={14} sx={{ ml: 1 }} />
+                  ) : file.status === 'rejected' ? (
+                    <ErrorOutlineIcon />
+                  ) : (
+                    <AttachFileIcon />
+                  )
+                }
+                color={file.status === 'rejected' ? 'error' : 'primary'}
+              />
+            </Tooltip>
           ))}
           {urls.map((url, index) => (
             <Chip
@@ -184,7 +241,13 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
                 <IconButton
                   onClick={handleSubmit}
                   aria-label="Send query"
-                  disabled={!query.trim() && files.length === 0 && urls.length === 0 && entityIds.length === 0}
+                  disabled={
+                    uploading ||
+                    (!query.trim() &&
+                      attached.length === 0 &&
+                      urls.length === 0 &&
+                      entityIds.length === 0)
+                  }
                   color="primary"
                   sx={{
                     bgcolor: 'primary.main',

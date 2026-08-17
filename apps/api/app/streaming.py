@@ -10,6 +10,8 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 
+from .attachments import AttachmentStore
+from .attachments import as_candidates as attachment_candidates
 from .config import Settings
 from .llm.context import citations_for, render_context
 from .llm.generator import AnswerGenerator
@@ -51,6 +53,7 @@ async def stream_answer(
     settings: Settings,
     registry: BackendRegistry,
     generator: AnswerGenerator,
+    attachments: AttachmentStore | None = None,
 ) -> AsyncGenerator[str, None]:
     """Yield the full event sequence for one query.
 
@@ -93,6 +96,14 @@ async def stream_answer(
                 top_k=top_k,
             )
         )
+
+        # Attached documents join the same candidate pool as the graph, so they
+        # go through the same scoring, the same rerank and the same citation
+        # numbering. Appended rather than prepended: an attachment does not
+        # outrank the graph by virtue of being attached, it competes.
+        attached = attachments.resolve(request.input.files or []) if attachments else []
+        if attached:
+            candidates.extend(attachment_candidates(attached, keywords))
 
         # A first frame from what came back unranked, so the visualization has
         # something to draw while ranking runs.

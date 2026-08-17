@@ -89,9 +89,25 @@ export interface BackendInfo {
   default: boolean;
 }
 
+/** One uploaded document, or one refusal, as reported by POST /api/attachments. */
+export interface AttachmentInfo {
+  id: string;
+  name: string;
+  bytes: number;
+  characters: number;
+  status: 'ready' | 'rejected';
+  /** Why it was refused, in words a person can act on. Absent when ready. */
+  detail?: string;
+}
+
 export interface QueryInputPayload {
   text: string;
-  /** File names only — bytes are uploaded separately. */
+  /**
+   * Attachment ids from POST /api/attachments, not file names.
+   *
+   * Names were what this carried before, which is why an attached document
+   * never reached the answer: the service had nothing to read.
+   */
   files?: string[];
   urls?: string[];
   entityIds?: string[];
