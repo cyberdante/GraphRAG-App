@@ -24,8 +24,9 @@ explains it.
 
 Each pass carries its own budget rather than sharing one. A shared limit is
 consumed by whichever pass the database happens to answer first, which in
-practice starves expansion completely — the same failure the per-entity budget
-comment in `asset-service` warns about.
+practice starves expansion completely. The same trap catches a shared limit
+across several entities: it truncates in whatever order the store returns, so
+it drops entire entities rather than trimming each evenly.
 """
 
 from dataclasses import dataclass
@@ -156,10 +157,12 @@ def relevant_predicates(schema: GraphSchema, keywords: list[str]) -> list[str]:
 def second_hop_classes(schema: GraphSchema, keywords: list[str]) -> set[str]:
     """Classes worth a second hop, when the request allows one.
 
-    The worked example from `asset-service`: the receiver number for an order
-    is an attribute of the *receipt*, not the order, so a one-hop search cannot
-    reach it however high the limit goes. Knowing the shape of the graph is
-    what tells retrieval when to keep walking.
+    The shape that makes this necessary: where a hub class sits between what
+    the question names and what answers it, the answer is an attribute of the
+    far side. A receiver number belongs to the receipt rather than to the
+    order, so a one-hop search cannot reach it however high the limit goes.
+    Knowing the shape of the graph is what tells retrieval when to keep
+    walking.
 
     Direction is deliberately ignored. The hub-and-spoke shape that makes a
     second hop necessary usually requires reversing direction at the hub, so

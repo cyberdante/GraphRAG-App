@@ -104,9 +104,8 @@ class TestWhatToExpandAlong:
 
 class TestWhenToKeepWalking:
     def test_names_the_classes_a_second_hop_would_reach(self):
-        # asset-service's worked example: the receiver number is an attribute
-        # of the receipt, not the order, so one hop cannot reach it however
-        # high the limit goes.
+        # The hub case: a receiver number is an attribute of the receipt, not
+        # of the order, so one hop cannot reach it however high the limit goes.
         assert passes.second_hop_classes(SCHEMA, ["supplier"]) == {
             "Shipment",
             "Product",

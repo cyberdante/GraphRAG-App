@@ -4,7 +4,7 @@ A candidate is one piece of evidence a store handed back. Every backend
 produces these, so scoring, ranking, prompting and the graph frame are written
 once rather than per store.
 
-The shape follows asset-service's NliCandidate: a reified statement carries
+The shape is a reified statement: it carries
 subject, predicate and object, which is what lets the graph frame be projected
 from the answer's own evidence rather than fetched separately (item 57).
 """

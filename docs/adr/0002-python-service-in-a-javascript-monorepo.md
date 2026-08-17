@@ -20,7 +20,7 @@ Given that a server was required, the question was which runtime. An
 all-TypeScript backend — Next.js route handlers, or Hono — would share types
 with the frontend directly and need one toolchain. Against that, the GraphRAG
 ecosystem is Python-first: `boto3`, `gremlinpython`, the SPARQL clients, spaCy,
-and the retrieval pipeline this project intends to port from `asset-service`.
+and the retrieval pipeline this project is building out.
 
 A third option, a TypeScript backend-for-frontend in front of a Python worker,
 was rejected as three moving parts to solve a problem we do not have yet.
