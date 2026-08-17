@@ -40,6 +40,15 @@ class FixtureGraphStore:
             # working rather than answering it with silence.
             return [self._statement(nodes, link) for link in in_scope][: budgets.total]
 
+        # Ids the asker named outright are looked up rather than searched for:
+        # an id is not a guess, so nothing about it needs matching.
+        named = set(request.entity_ids)
+        id_hits = (
+            [link for link in in_scope if link.source in named or link.target in named]
+            if named
+            else []
+        )
+
         entity_hits = [
             link
             for link in in_scope
@@ -75,6 +84,7 @@ class FixtureGraphStore:
 
         return passes.merge(
             [
+                [self._scored(nodes, link, keywords) for link in id_hits],
                 [self._scored(nodes, link, keywords) for link in entity_hits],
                 [self._scored(nodes, link, keywords) for link in vocabulary_hits],
                 [self._scored(nodes, link, keywords) for link in expansion_hits],

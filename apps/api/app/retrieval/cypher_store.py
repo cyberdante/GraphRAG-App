@@ -62,6 +62,17 @@ class CypherGraphStore:
             entity_rows = await self._run(
                 session, _BY_ENTITY, {"types": types, "keywords": keywords, "limit": budgets.entity}
             )
+
+            # Ids the asker named outright. They are not searched for, they are
+            # looked up: someone who attached `sup_88` has told us exactly what
+            # the question is about, and matching that against keywords would be
+            # throwing the information away.
+            if request.entity_ids:
+                entity_rows += await self._run(
+                    session,
+                    _BY_ID,
+                    {"types": types, "ids": list(request.entity_ids), "limit": budgets.entity},
+                )
             vocabulary_rows = await self._run(
                 session,
                 _BY_VOCABULARY,
@@ -308,4 +319,14 @@ _SCHEMA_SHAPES = """
     RETURN domain, predicate, range, total
     ORDER BY total DESC
     LIMIT $limit
+"""
+
+
+#: Statements touching a node the asker named by id. No keyword filter: an id is
+#: not a guess, so nothing about it needs to be matched.
+_BY_ID = f"""
+    MATCH (subject)-[relation]->(object)
+    WHERE {_TYPE_FILTER}
+      AND (subject.id IN $ids OR object.id IN $ids)
+    {_PROJECTION}
 """

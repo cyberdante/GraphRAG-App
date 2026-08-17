@@ -344,3 +344,32 @@ describe('a chip that reports is not a chip that acts', () => {
     expect(style.backgroundColor).toBeUndefined();
   });
 });
+
+describe('no component asks the browser to ask', () => {
+  /**
+   * `window.prompt`, `alert` and `confirm` cannot be branded, cannot explain
+   * why a value was rejected, block the page while open, and are suppressed
+   * outright by some browsers and by every embedded webview. In a console whose
+   * proposition is that it carries the client's identity, they are also the one
+   * dialog unmistakably not theirs.
+   *
+   * Item 06 claimed these were all gone. Two survived in the composer for the
+   * URL and entity-ID inputs, which is why this is a test rather than a note.
+   */
+  const componentsDir4 = join(__dirname, '..', 'app', 'components');
+  const NATIVE_DIALOG = /(?<![.\w])(?:window\.)?(prompt|alert|confirm)\s*\(/;
+
+  const sources4 = readdirSync(componentsDir4)
+    .filter((file) => file.endsWith('.tsx') && !file.includes('.test.'))
+    .map((file) => [file, readFileSync(join(componentsDir4, file), 'utf8')] as const);
+
+  it.each(sources4)('%s asks in the app, not in the browser', (_file, source) => {
+    const offenders = source
+      .split('\n')
+      // Comments explaining the rule are not the rule being broken.
+      .filter((line) => !line.trim().startsWith('//') && !line.trim().startsWith('*'))
+      .filter((line) => NATIVE_DIALOG.test(line));
+
+    expect(offenders).toEqual([]);
+  });
+});

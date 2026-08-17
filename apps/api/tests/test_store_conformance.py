@@ -290,3 +290,44 @@ async def test_both_backends_describe_the_same_graph_identically():
         }
 
     assert described(from_fixtures) == described(from_cypher)
+
+
+@pytest.mark.anyio
+async def test_an_entity_id_anchors_the_search(store: GraphStore):
+    """An id names an individual, so it is looked up rather than searched for.
+
+    Attachments of this kind used to reach the request and stop there. Someone
+    who attaches `sup_88` has said exactly what the question is about, and
+    matching that against keywords would throw the information away — so the
+    evidence returned has to actually be about that node.
+    """
+    anchored = await store.retrieve(
+        RetrievalRequest(query="anything at all", entity_ids=["sup_88"], max_candidates=40)
+    )
+
+    assert anchored, f"{store.name} returned nothing for an id its graph contains"
+    assert any("sup_88" in {candidate.subject, candidate.object} for candidate in anchored), (
+        f"{store.name} ignored the id it was given"
+    )
+
+
+@pytest.mark.anyio
+async def test_an_id_works_even_when_the_question_matches_nothing(store: GraphStore):
+    # The case that distinguishes an anchor from a filter: prose that matches no
+    # keyword in the graph must not suppress an id that does exist.
+    anchored = await store.retrieve(
+        RetrievalRequest(query="zeppelin trombone", entity_ids=["sup_88"], max_candidates=40)
+    )
+
+    assert any("sup_88" in {candidate.subject, candidate.object} for candidate in anchored)
+
+
+@pytest.mark.anyio
+async def test_an_unknown_id_is_not_an_error(store: GraphStore):
+    # An id that has gone is not something the asker can act on, and failing the
+    # whole question over it would be worse than answering from the rest.
+    result = await store.retrieve(
+        RetrievalRequest(query="supplier risk", entity_ids=["no_such_node"])
+    )
+
+    assert isinstance(result, list)

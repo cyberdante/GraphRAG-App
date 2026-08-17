@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AttachmentPrompt, type PromptKind } from './AttachmentPrompt';
 import {
   nextLocalId,
   readyIds,
@@ -45,6 +46,7 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
   const [urls, setUrls] = useState<string[]>([]);
   const [entityIds, setEntityIds] = useState<string[]>([]);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [prompting, setPrompting] = useState<PromptKind | null>(null);
 
   // Only what actually arrived. Sending an id for a rejected file would ask
   // the service to answer from a document it never received.
@@ -95,20 +97,22 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
     );
   };
 
+  // Was `window.prompt()`, which cannot be branded, cannot explain a rejection,
+  // and is suppressed entirely by some browsers and every embedded webview.
   const handleAddUrl = () => {
-    const url = prompt('Enter URL:');
-    if (url) {
-      setUrls(prev => [...prev, url]);
-    }
+    setPrompting('url');
     setAnchorEl(null);
   };
 
   const handleAddEntityId = () => {
-    const id = prompt('Enter Entity ID:');
-    if (id) {
-      setEntityIds(prev => [...prev, id]);
-    }
+    setPrompting('entity');
     setAnchorEl(null);
+  };
+
+  const handlePromptConfirm = (value: string) => {
+    if (prompting === 'url') setUrls((prev) => [...prev, value]);
+    else if (prompting === 'entity') setEntityIds((prev) => [...prev, value]);
+    setPrompting(null);
   };
 
   const removeFile = (index: number) => {
@@ -131,6 +135,12 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
         bgcolor: 'background.paper'
       }}
     >
+      <AttachmentPrompt
+        kind={prompting}
+        onCancel={() => setPrompting(null)}
+        onConfirm={handlePromptConfirm}
+      />
+
       {/* Attachments Display */}
       {(files.length > 0 || urls.length > 0 || entityIds.length > 0) && (
         <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>

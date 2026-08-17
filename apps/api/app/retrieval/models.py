@@ -96,4 +96,8 @@ class RetrievalRequest:
     max_nodes: int = 150
     max_hops: int = 2
     entity_types: list[str] = field(default_factory=list)
+    #: Node ids named directly by the asker, as an attachment rather than as
+    #: prose. Distinct from `entity_types`, which narrows by class: these name
+    #: individuals, so they anchor the search rather than filtering it.
+    entity_ids: list[str] = field(default_factory=list)
     top_k: int = 30

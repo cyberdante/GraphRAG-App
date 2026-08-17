@@ -95,6 +95,7 @@ async def stream_answer(
                 max_nodes=max_nodes,
                 max_hops=request.retrieval.graph.max_hops,
                 entity_types=request.retrieval.graph.entity_types,
+                entity_ids=request.input.entityIds or [],
                 top_k=top_k,
             )
         )
