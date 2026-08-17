@@ -10,6 +10,7 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 
+from . import ontology
 from .attachments import Attachment, AttachmentStore
 from .attachments import as_candidates as attachment_candidates
 from .config import Settings
@@ -30,6 +31,7 @@ from .retrieval import scoring
 from .retrieval.graph_frame import graph_from_candidates, grounded_in
 from .retrieval.models import RetrievalRequest
 from .retrieval.registry import BackendRegistry
+from .retrieval.schema import with_declared
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +186,7 @@ async def stream_answer(
         # someone else's data wrongly. Failure here costs the card, not the
         # answer — retrieval already worked.
         try:
-            graph_schema = await store.schema()
+            graph_schema = with_declared(await store.schema(), ontology.SHAPES)
         except Exception:
             logger.warning("Could not read the schema from %s.", store.name, exc_info=True)
             graph_schema = None

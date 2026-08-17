@@ -53,6 +53,113 @@ PROPERTIES: dict[str, str] = {
 }
 
 
+#: The version of the vocabulary this build declares. Bumped when a class or a
+#: property changes meaning, so a consumer holding an older export can tell.
+VERSION = "1.0.0"
+
+#: Where the Turtle document is served. Relative on purpose: the deployment's
+#: own origin serves it, and hardcoding a host would name somebody else's.
+ONTOLOGY_PATH = "/ontology/supply-chain.ttl"
+
+#: What each property connects, declared rather than observed.
+#:
+#: The mapping above says a predicate exists and gives it an IRI. It does not say
+#: what it joins, which is the part retrieval needs: knowing that HAS_RISK goes
+#: from a Supplier to a Risk is what lets a traversal be planned instead of
+#: walked. Item 68 currently infers this by counting what the data happens to
+#: contain, which cannot describe a path the data has not taken yet — a graph
+#: with no risks recorded still *has* a risk relationship.
+#:
+#: Declared as (domain, predicate, range). `tests/test_ontology.py` holds these
+#: to the fixture graph in both directions, so a declaration that does not match
+#: the data is a failing test rather than a comment nobody reads.
+SHAPES: tuple[tuple[str, str, str], ...] = (
+    ("Supplier", "HAS_RISK", "Risk"),
+    ("Supplier", "SHIPS", "Shipment"),
+    ("Supplier", "SUPPLIES", "Product"),
+    ("Product", "IN_SHIPMENT", "Shipment"),
+    ("Shipment", "DELIVERED_TO", "Location"),
+    ("Shipment", "IN_TRANSIT", "Location"),
+    ("Risk", "INDICATED_BY", "RiskSignal"),
+    ("Location", "HAS_SIGNAL", "RiskSignal"),
+)
+
+
+def domain_of(predicate: str) -> str | None:
+    """The class a predicate starts from, when the vocabulary declares one."""
+    return next((domain for domain, term, _ in SHAPES if term == predicate), None)
+
+
+def range_of(predicate: str) -> str | None:
+    """The class a predicate points at, when the vocabulary declares one."""
+    return next((target for _, term, target in SHAPES if term == predicate), None)
+
+
+def to_turtle() -> str:
+    """The vocabulary as a Turtle document, served rather than inlined.
+
+    An ontology that exists only as a Python dictionary is not an ontology
+    anybody else can use. This is the artifact: fetchable, versioned, and
+    referenced by the exports, so a consumer holding a JSON-LD graph can resolve
+    what its terms mean instead of guessing from their names.
+
+    Generated from the declarations above rather than maintained alongside them,
+    because two files describing one vocabulary is how the original defect
+    happened — the export declared `hasRisk` while the graph emitted `HAS_RISK`,
+    and nothing noticed because nothing compared them.
+    """
+    lines = [
+        "# The Ragstone supply-chain vocabulary.",
+        "#",
+        "# Generated from app/ontology.py. Do not edit by hand: the Python",
+        "# declarations are the source, and tests hold both to the data.",
+        "",
+        "@prefix owl:   <http://www.w3.org/2002/07/owl#> .",
+        "@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .",
+        "@prefix schema: <https://schema.org/> .",
+        f"@prefix sc:    <{VOCAB}> .",
+        "",
+        f"<{VOCAB.rstrip('#')}> a owl:Ontology ;",
+        f'    owl:versionInfo "{VERSION}" ;',
+        '    rdfs:label "Ragstone supply chain" .',
+        "",
+        "# ── Classes ──",
+    ]
+
+    for term in sorted(CLASSES):
+        label = _spaced(term)
+        lines.append(f'sc:{term} a owl:Class ; rdfs:label "{label}" .')
+
+    lines += ["", "# ── Object properties, with what they connect ──"]
+
+    for domain, predicate, target in SHAPES:
+        iri = PROPERTIES[predicate]
+        local = iri.rsplit("#", 1)[-1]
+        lines.append(
+            f"sc:{local} a owl:ObjectProperty ; "
+            f"rdfs:domain sc:{domain} ; rdfs:range sc:{target} ; "
+            f'rdfs:label "{_spaced(local)}" .'
+        )
+
+    unshaped = sorted(set(PROPERTIES) - {predicate for _, predicate, _ in SHAPES})
+    if unshaped:
+        lines += ["", "# ── Properties with no declared domain or range ──"]
+        for predicate in unshaped:
+            local = PROPERTIES[predicate].rsplit("#", 1)[-1]
+            lines.append(f'sc:{local} a owl:ObjectProperty ; rdfs:label "{_spaced(local)}" .')
+
+    return "\n".join(lines) + "\n"
+
+
+def _spaced(term: str) -> str:
+    """`HAS_RISK` and `RiskSignal` both become something a person would read."""
+    if "_" in term:
+        return term.replace("_", " ").title()
+    return "".join(
+        f" {char}" if char.isupper() and index else char for index, char in enumerate(term)
+    ).strip()
+
+
 def jsonld_context() -> dict[str, Any]:
     """The `@context` for exported graphs.
 
@@ -94,4 +201,14 @@ def graph_to_jsonld(graph: GraphData) -> dict[str, Any]:
             }
         )
 
-    return {"@context": jsonld_context(), "@graph": entities}
+    return {
+        "@context": jsonld_context(),
+        # Names the vocabulary this document is written in, and the version of
+        # it, so a consumer can fetch the definitions instead of inferring them
+        # from term names — which is exactly what went wrong when the export
+        # declared `hasRisk` and the graph emitted `HAS_RISK`.
+        "@id": VOCAB.rstrip("#"),
+        "isDefinedBy": ONTOLOGY_PATH,
+        "version": VERSION,
+        "@graph": entities,
+    }

@@ -8,10 +8,16 @@ classes describes someone else's data wrongly.
 
 import pytest
 
+from app import ontology
 from app.llm.context import render_context
 from app.retrieval.fixture_store import FixtureGraphStore
 from app.retrieval.models import Candidate
-from app.retrieval.schema import GraphSchema, SchemaEdge, render_schema_card
+from app.retrieval.schema import (
+    GraphSchema,
+    SchemaEdge,
+    render_schema_card,
+    with_declared,
+)
 
 
 def edge(domain: str, predicate: str, range_: str, count: int = 1) -> SchemaEdge:
@@ -138,3 +144,75 @@ class TestTheFixtureStoreDescribesItself:
         schema = await FixtureGraphStore().schema()
 
         assert all(edge.count > 0 for edge in schema.edges)
+
+
+class TestDeclaredShapesFillTheGaps:
+    """Introspection reports what is there; a vocabulary knows what can be.
+
+    A graph with no risks recorded still has a risk relationship, and a traversal
+    planned purely from counts cannot follow a path the data has not taken —
+    which is exactly when a question returns nothing for a reason nobody can see.
+    """
+
+    OBSERVED = GraphSchema(
+        edges=[
+            edge("Supplier", "SHIPS", "Shipment", 40),
+            edge("Shipment", "DELIVERED_TO", "Location", 30),
+        ]
+    )
+
+    def test_adds_a_declared_shape_the_data_has_not_exhibited(self):
+        # Supplier and Risk both exist below, so HAS_RISK is plannable even
+        # though no such edge has been recorded.
+        merged = with_declared(
+            GraphSchema(edges=[*self.OBSERVED.edges, edge("Supplier", "SUPPLIES", "Risk", 5)]),
+            (("Supplier", "HAS_RISK", "Risk"),),
+        )
+
+        assert ("Supplier", "HAS_RISK", "Risk") in [
+            (item.domain, item.predicate, item.range) for item in merged.edges
+        ]
+
+    def test_will_not_invent_a_shape_for_classes_the_store_does_not_have(self):
+        # The assumption item 66 removed: that a deployment's graph looks like
+        # ours. Absent classes are evidence it does not.
+        merged = with_declared(self.OBSERVED, (("Supplier", "HAS_RISK", "Risk"),))
+
+        assert "Risk" not in merged.classes
+
+    def test_declared_shapes_rank_behind_observed_ones(self):
+        # A path the data has never taken is a fallback, not a recommendation.
+        merged = with_declared(
+            GraphSchema(edges=[*self.OBSERVED.edges, edge("Supplier", "SUPPLIES", "Risk", 5)]),
+            (("Supplier", "HAS_RISK", "Risk"),),
+        )
+        added = next(item for item in merged.edges if item.predicate == "HAS_RISK")
+
+        assert added.count == 0
+
+    def test_does_not_duplicate_a_shape_already_observed(self):
+        merged = with_declared(self.OBSERVED, (("Supplier", "SHIPS", "Shipment"),))
+
+        assert len(merged.edges) == len(self.OBSERVED.edges)
+
+    def test_leaves_an_empty_schema_empty(self):
+        # Nothing to reason from, so nothing to add: a store that could not
+        # describe itself should not be described for it.
+        assert with_declared(GraphSchema(), (("Supplier", "HAS_RISK", "Risk"),)).is_empty()
+
+    def test_the_projects_own_vocabulary_fills_its_own_graph(self):
+        # End to end with the real declarations: every shape the vocabulary
+        # names is plannable against a store that holds those classes.
+        merged = with_declared(
+            GraphSchema(
+                edges=[
+                    edge(domain, predicate, target, 1)
+                    for domain, predicate, target in ontology.SHAPES[:1]
+                ]
+                + [edge(cls, "SEEN", cls, 1) for cls in ontology.CLASSES]
+            ),
+            ontology.SHAPES,
+        )
+        planned = {(item.domain, item.predicate, item.range) for item in merged.edges}
+
+        assert set(ontology.SHAPES) <= planned

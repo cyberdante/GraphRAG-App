@@ -10,6 +10,9 @@ Checking agreement in both directions is what makes that unrepeatable: a new
 relationship cannot go undeclared, and a declared term cannot quietly rot.
 """
 
+import re
+
+from app import fixtures, ontology
 from app.fixtures import SUPPLY_CHAIN_GRAPH
 from app.models import GraphData, GraphEdge, GraphNode
 from app.ontology import CLASSES, PROPERTIES, VOCAB, graph_to_jsonld, jsonld_context
@@ -97,3 +100,117 @@ class TestDocument:
 
         assert "SOMETHING_NEW" not in entity
         assert entity["relatedTo"] == ["b"]
+
+
+class TestTheDeclaredShape:
+    """`domain` and `range`, held to the data in both directions.
+
+    The mapping of terms to IRIs says a predicate exists. It does not say what
+    it joins, which is the part retrieval needs: item 68 infers it by counting
+    what the fixture graph happens to contain, and counting cannot describe a
+    path the data has not taken — a graph with no risks recorded still has a
+    risk relationship.
+
+    Declaring it only helps if the declaration is true, so these compare it with
+    the graph rather than trusting it.
+    """
+
+    def observed(self) -> set[tuple[str, str, str]]:
+        graph = fixtures.SUPPLY_CHAIN_GRAPH
+        nodes = {node.id: node for node in graph.nodes}
+        return {
+            (nodes[link.source].type, link.type, nodes[link.target].type)
+            for link in graph.links
+            if link.source in nodes and link.target in nodes
+        }
+
+    def test_every_declared_shape_appears_in_the_data(self):
+        # A declaration the data contradicts is worse than no declaration: it
+        # would send retrieval down a path that returns nothing.
+        undeclared = set(ontology.SHAPES) - self.observed()
+
+        assert undeclared == set(), f"declared but never seen: {sorted(undeclared)}"
+
+    def test_every_shape_in_the_data_is_declared(self):
+        # The other direction, and the one the original defect lived in: a
+        # relationship the vocabulary does not describe is one no consumer can
+        # resolve and no traversal can plan around.
+        missing = self.observed() - set(ontology.SHAPES)
+
+        assert missing == set(), f"in the data but undeclared: {sorted(missing)}"
+
+    def test_every_shape_uses_declared_classes_and_properties(self):
+        for domain, predicate, target in ontology.SHAPES:
+            assert domain in ontology.CLASSES, f"{domain} is not a declared class"
+            assert target in ontology.CLASSES, f"{target} is not a declared class"
+            assert predicate in ontology.PROPERTIES, f"{predicate} is not a declared property"
+
+    def test_domain_and_range_are_reported_for_a_declared_predicate(self):
+        assert ontology.domain_of("HAS_RISK") == "Supplier"
+        assert ontology.range_of("HAS_RISK") == "Risk"
+
+    def test_an_undeclared_predicate_reports_neither(self):
+        # `relatedTo` is the fallback for a relationship we have not named, so
+        # it deliberately has no shape.
+        assert ontology.domain_of("relatedTo") is None
+        assert ontology.range_of("relatedTo") is None
+
+
+class TestTheTurtleDocument:
+    def test_declares_every_class(self):
+        turtle = ontology.to_turtle()
+
+        for term in ontology.CLASSES:
+            assert f"sc:{term} a owl:Class" in turtle
+
+    def test_declares_every_property_with_its_shape(self):
+        turtle = ontology.to_turtle()
+
+        for domain, predicate, target in ontology.SHAPES:
+            local = ontology.PROPERTIES[predicate].rsplit("#", 1)[-1]
+            assert f"sc:{local} a owl:ObjectProperty" in turtle
+            assert f"rdfs:domain sc:{domain}" in turtle
+            assert f"rdfs:range sc:{target}" in turtle
+
+    def test_mentions_no_term_it_has_not_declared(self):
+        # The generated document is the artifact consumers read; a term in it
+        # that the vocabulary does not define is the original bug in a new place.
+        turtle = ontology.to_turtle()
+        referenced = set(re.findall(r"\bsc:(\w+)\b", turtle))
+        known = set(ontology.CLASSES) | {
+            iri.rsplit("#", 1)[-1] for iri in ontology.PROPERTIES.values()
+        }
+
+        assert referenced - known == set()
+
+    def test_carries_its_own_version(self):
+        assert f'owl:versionInfo "{ontology.VERSION}"' in ontology.to_turtle()
+
+    def test_is_generated_rather_than_maintained(self):
+        # Two files describing one vocabulary is how the original defect
+        # happened. The document says so, to whoever opens it next.
+        assert "Do not edit by hand" in ontology.to_turtle()
+
+
+class TestExportsNameTheVocabulary:
+    def test_a_graph_export_points_at_the_served_document(self):
+        document = ontology.graph_to_jsonld(fixtures.SUPPLY_CHAIN_GRAPH)
+
+        assert document["isDefinedBy"] == ontology.ONTOLOGY_PATH
+        assert document["version"] == ontology.VERSION
+
+    def test_the_document_is_served(self, client):
+        response = client.get(ontology.ONTOLOGY_PATH)
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/turtle")
+        assert "owl:Ontology" in response.text
+
+    def test_what_is_served_is_what_is_declared(self):
+        # No drift possible: one generator, one document.
+        from fastapi.testclient import TestClient
+
+        from app.main import app
+
+        with TestClient(app) as client:
+            assert client.get(ontology.ONTOLOGY_PATH).text == ontology.to_turtle()

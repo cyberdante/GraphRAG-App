@@ -115,3 +115,38 @@ def render_schema_card(schema: GraphSchema, limit: int = 40) -> str:
         )
 
     return "The graph contains these classes and relationships:\n" + "\n".join(lines)
+
+
+def with_declared(schema: GraphSchema, declared: tuple[tuple[str, str, str], ...]) -> GraphSchema:
+    """Adds shapes the vocabulary declares but the data has not exhibited.
+
+    Introspection can only report what is there. A graph with no risks recorded
+    still *has* a risk relationship, and a traversal planned purely from counts
+    cannot follow a path the data has not yet taken — which is precisely the
+    case where a question returns nothing and the reason is invisible.
+
+    Guarded, though: a declared shape is only added when the store actually has
+    both of its classes. Merging our supply-chain vocabulary into a store holding
+    somebody else's graph would reintroduce the assumption item 66 removed — that
+    the deployment's data looks like ours. Present classes are evidence it does;
+    absent ones are evidence it does not.
+
+    Added with a count of zero, so ranking by frequency puts observed shapes
+    first. A declared-but-unseen path is a fallback, not a recommendation.
+    """
+    if schema.is_empty():
+        return schema
+
+    present = set(schema.classes)
+    known = {(edge.domain, edge.predicate, edge.range) for edge in schema.edges}
+
+    additions = [
+        SchemaEdge(domain=domain, predicate=predicate, range=target, count=0)
+        for domain, predicate, target in declared
+        if (domain, predicate, target) not in known and domain in present and target in present
+    ]
+
+    if not additions:
+        return schema
+
+    return GraphSchema(edges=[*schema.edges, *additions], truncated=schema.truncated)

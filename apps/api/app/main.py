@@ -2,8 +2,9 @@ import logging
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 
+from . import ontology
 from .attachments import AttachmentRejected, AttachmentStore
 from .config import Settings, get_settings
 from .llm.generator import AnswerGenerator
@@ -84,6 +85,24 @@ async def backends(registry: BackendRegistry = Depends(get_registry)) -> list[Ba
         )
         for store in registry.available()
     ]
+
+
+@app.get("/ontology/supply-chain.ttl", response_class=PlainTextResponse)
+async def ontology_document() -> PlainTextResponse:
+    """The vocabulary, as a document somebody else can fetch.
+
+    An ontology that exists only as a Python dictionary is not an ontology
+    anyone can use. The JSON-LD exports name this URL, so a consumer holding a
+    graph can resolve what its terms mean rather than guessing from their names.
+
+    Cached for an hour: it changes when the version does, and the version is in
+    the document.
+    """
+    return PlainTextResponse(
+        content=ontology.to_turtle(),
+        media_type="text/turtle; charset=utf-8",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @app.post("/api/attachments", response_model=list[AttachmentInfo])
