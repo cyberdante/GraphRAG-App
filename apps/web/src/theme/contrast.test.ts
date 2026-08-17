@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { AA_NORMAL, auditContrast, contrastRatio, luminance, parseColor, readableOn } from './contrast';
+import { AA_NORMAL, auditContrast, contrastRatio, luminance, parseColor, readableOn,
+  flatten,
+} from './contrast';
 
 describe('parseColor', () => {
   it('reads six-digit hex', () => {
@@ -10,9 +12,17 @@ describe('parseColor', () => {
     expect(parseColor('#fff')).toEqual({ r: 255, g: 255, b: 255 });
   });
 
-  it('reads rgb() and rgba() notation', () => {
+  it('reads rgb() and rgba() notation, alpha included', () => {
+    // This test previously asserted that the alpha was discarded, which is
+    // how the bug survived: the expectation encoded it. A translucent colour
+    // measured as opaque is measured as a colour nobody sees.
     expect(parseColor('rgb(20, 30, 40)')).toEqual({ r: 20, g: 30, b: 40 });
-    expect(parseColor('rgba(20, 30, 40, 0.5)')).toEqual({ r: 20, g: 30, b: 40 });
+    expect(parseColor('rgba(20, 30, 40, 0.5)')).toEqual({
+      r: 20,
+      g: 30,
+      b: 40,
+      alpha: 0.5,
+    });
   });
 
   it('rejects something it cannot read rather than guessing', () => {
@@ -88,5 +98,43 @@ describe('auditContrast', () => {
     const pair = { label: 'heading', foreground: '#767676', background: '#ffffff' };
     expect(auditContrast([{ ...pair, required: 3 }])).toEqual([]);
     expect(auditContrast([{ ...pair, required: 7 }])).toHaveLength(1);
+  });
+});
+
+describe('a translucent foreground is measured as it renders', () => {
+  // The bug: `parseColor` matched `rgba(r, g, b` and dropped the alpha, so
+  // MUI's default `rgba(0, 0, 0, 0.87)` was scored as pure black — the one
+  // colour it is not. The audit reported 4.56 for a button whose rendered
+  // value was 4.19, and every default text colour MUI ships is translucent,
+  // so the blind spot covered exactly the colours most likely to be measured.
+
+  it('reads the alpha rather than discarding it', () => {
+    expect(parseColor('rgba(0, 0, 0, 0.87)').alpha).toBe(0.87);
+    expect(parseColor('rgb(0, 0, 0)').alpha).toBeUndefined();
+    expect(parseColor('#000000').alpha).toBeUndefined();
+  });
+
+  it('accepts the space-separated and percentage forms too', () => {
+    expect(parseColor('rgb(0 0 0 / 50%)').alpha).toBe(0.5);
+    expect(parseColor('rgba(0 0 0 / 0.5)').alpha).toBe(0.5);
+  });
+
+  it('composites over what sits behind it', () => {
+    // 87% black over a mid blue is a very dark blue, not black.
+    expect(flatten('rgba(0, 0, 0, 0.87)', '#1976d2')).toBe('rgb(3, 15, 27)');
+  });
+
+  it('leaves an opaque colour untouched', () => {
+    expect(flatten('#123456', '#ffffff')).toBe('#123456');
+    expect(flatten('rgb(1, 2, 3)', '#ffffff')).toBe('rgb(1, 2, 3)');
+  });
+
+  it('scores translucent black on blue lower than solid black would', () => {
+    const translucent = contrastRatio('rgba(0, 0, 0, 0.87)', '#1976d2');
+    const solid = contrastRatio('#000000', '#1976d2');
+
+    expect(translucent).toBeLessThan(solid);
+    // The number that mattered: below AA, where the old reading said above.
+    expect(translucent).toBeCloseTo(4.19, 1);
   });
 });

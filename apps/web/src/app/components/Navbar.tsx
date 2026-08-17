@@ -142,10 +142,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         <Tooltip title="New Chat">
           <Button
             onClick={onNewChat}
-            sx={{
-              color: 'text.primary',
-              mr: 1
-            }}
+            // No colour here on purpose. The theme derives a readable
+            // foreground from the tenant's own brand colour; naming
+            // `text.primary` put near-black on a mid-blue button at 4.19:1,
+            // and on a deep-violet tenant at 1.84:1.
+            sx={{ mr: 1 }}
             startIcon={<AddIcon />}
           >
             New Chat
@@ -156,10 +157,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <Tooltip title="Export">
           <Button
             onClick={handleExportMenuClick}
-            sx={{
-              color: 'text.primary',
-              mr: 1
-            }}
+            sx={{ mr: 1 }}
             startIcon={<DownloadIcon />}
           >
             Export

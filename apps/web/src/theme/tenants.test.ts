@@ -208,3 +208,54 @@ describe('no component hardcodes a colour', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe('no component overrides a derived foreground', () => {
+  /**
+   * The regression, found from a screenshot: Navbar set `color: 'text.primary'`
+   * on two `<Button>`s. The theme's default button variant is contained, so
+   * those sit on `primary.main` — and naming a foreground defeats the
+   * `contrastText` that item 74 derives from the tenant's own brand colour.
+   *
+   * The result was near-black on a mid blue at 4.19:1, on Meridian's amber at
+   * 3.86:1, and on Lumen's violet at 1.84:1. All three below AA, in a product
+   * whose selling point is that any brand colour stays readable.
+   *
+   * The existing guards did not catch it: it hardcodes no hex, and names no
+   * `variant`. It overrides the *foreground* instead.
+   */
+  const componentsDir3 = join(__dirname, '..', 'app', 'components');
+  const BUTTON_WITH_COLOUR = /<Button\b[\s\S]{0,400}?color:\s*'(text|common)\./;
+
+  const sources3 = readdirSync(componentsDir3)
+    .filter((file) => file.endsWith('.tsx') && !file.includes('.test.'))
+    .map((file) => [file, readFileSync(join(componentsDir3, file), 'utf8')] as const);
+
+  it.each(sources3)('%s lets buttons take the derived foreground', (_file, source) => {
+    expect(BUTTON_WITH_COLOUR.test(source)).toBe(false);
+  });
+});
+
+describe('what a tenant actually reads', () => {
+  // Computed from the built theme rather than from a list of colours someone
+  // remembered to add, so a new tenant is covered the day it is declared.
+  const pairs = (theme: ReturnType<typeof buildTheme>) => [
+    ['button label on a primary button', theme.palette.primary.contrastText, theme.palette.primary.main],
+    ['button label on a secondary button', theme.palette.secondary.contrastText, theme.palette.secondary.main],
+    ['body text on the page', theme.palette.text.primary, theme.palette.background.default],
+    ['body text on a card', theme.palette.text.primary, theme.palette.background.paper],
+  ];
+
+  for (const [id, tenant] of tenants) {
+    for (const dark of [false, true]) {
+      it(`${id} in ${dark ? 'dark' : 'light'} mode meets AA everywhere`, () => {
+        const theme = buildTheme(tenant, dark);
+        const failures = pairs(theme)
+          .map(([what, fg, bg]) => [what, contrastRatio(fg as string, bg as string)] as const)
+          .filter(([, ratio]) => ratio < AA_NORMAL)
+          .map(([what, ratio]) => `${what}: ${ratio.toFixed(2)}`);
+
+        expect(failures).toEqual([]);
+      });
+    }
+  }
+});

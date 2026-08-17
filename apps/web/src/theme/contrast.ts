@@ -17,6 +17,8 @@ export const AA_NORMAL = 4.5;
 export const AA_LARGE = 3;
 
 export interface Rgb {
+  /** 0–1. Absent in a hex colour, which is opaque by definition. */
+  alpha?: number;
   r: number;
   g: number;
   b: number;
@@ -26,12 +28,29 @@ export interface Rgb {
 export function parseColor(color: string): Rgb {
   const value = color.trim();
 
-  const rgbMatch = value.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+  const rgbMatch = value.match(
+    /^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s/]+([\d.]+%?))?/i,
+  );
   if (rgbMatch) {
+    // The alpha is read, not dropped. Discarding it scored MUI's default
+    // `rgba(0, 0, 0, 0.87)` as pure black, which is the one colour it is not:
+    // 87% black over a blue button composites to something lighter, and the
+    // audit reported 4.56 where the rendered value was 4.19. Every default
+    // text colour MUI ships is translucent, so the blind spot covered exactly
+    // the colours most likely to be measured.
+    const raw = rgbMatch[4];
+    const alpha =
+      raw === undefined
+        ? undefined
+        : raw.endsWith('%')
+          ? Number(raw.slice(0, -1)) / 100
+          : Number(raw);
+
     return {
       r: Number(rgbMatch[1]),
       g: Number(rgbMatch[2]),
       b: Number(rgbMatch[3]),
+      ...(alpha !== undefined && Number.isFinite(alpha) ? { alpha } : {}),
     };
   }
 
@@ -67,9 +86,26 @@ export function luminance(color: string): number {
   return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
 }
 
+/**
+ * Composites a translucent colour over what sits behind it.
+ *
+ * WCAG measures what a reader sees, and a reader sees the blend. Treating a
+ * translucent foreground as opaque overstates its contrast against a dark
+ * background and understates it against a light one.
+ */
+export function flatten(foreground: string, background: string): string {
+  const fg = parseColor(foreground);
+  if (fg.alpha === undefined || fg.alpha >= 1) return foreground;
+
+  const bg = parseColor(background);
+  const blend = (f: number, b: number) => Math.round(fg.alpha! * f + (1 - fg.alpha!) * b);
+
+  return `rgb(${blend(fg.r, bg.r)}, ${blend(fg.g, bg.g)}, ${blend(fg.b, bg.b)})`;
+}
+
 /** Contrast ratio between two colours, from 1 (identical) to 21 (black on white). */
 export function contrastRatio(foreground: string, background: string): number {
-  const a = luminance(foreground);
+  const a = luminance(flatten(foreground, background));
   const b = luminance(background);
   const [lighter, darker] = a > b ? [a, b] : [b, a];
   return (lighter + 0.05) / (darker + 0.05);
