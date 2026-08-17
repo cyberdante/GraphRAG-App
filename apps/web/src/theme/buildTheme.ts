@@ -9,7 +9,7 @@
 
 import { createTheme, type Theme, type ThemeOptions } from '@mui/material';
 import type { Tenant, TenantVariants } from '@ragstone/shared';
-import { AA_LARGE, ensureContrast, readableOn } from './contrast';
+import { AA_LARGE, AA_NORMAL, ensureContrast, readableOn } from './contrast';
 
 /** Every Material elevation flattened; borders or nothing carry separation. */
 const NO_SHADOWS = Array(25).fill('none') as ThemeOptions['shadows'];
@@ -99,7 +99,38 @@ export function buildTheme(tenant: Tenant, darkMode: boolean): Theme {
       },
       MuiChip: {
         defaultProps: { variant: variants.chip, size: variants.controlSize },
-        styleOverrides: { root: { borderRadius: shape.radius, fontWeight: 600 } },
+        styleOverrides: {
+          // A chip that reports a number is not a control, and must not wear a
+          // control's clothes. Filled in a brand colour, "55 Nodes" was the
+          // same solid pill as the New Chat button beside it, so the only way
+          // to learn it does nothing was to click it.
+          //
+          // Expressed by whether the chip is interactive rather than by where
+          // it is used, so a tenant's chip variant still decides the shape and
+          // every read-only chip is covered without each caller remembering.
+          root: ({ ownerState }: { ownerState: { clickable?: boolean; onClick?: unknown; color?: string } }) => {
+            const base = { borderRadius: shape.radius, fontWeight: 600 };
+            const interactive = Boolean(ownerState.clickable || ownerState.onClick);
+            const accent =
+              ownerState.color === 'primary'
+                ? forSurface(palette.primary)
+                : ownerState.color === 'secondary'
+                  ? forSurface(palette.secondary)
+                  : null;
+
+            if (interactive || !accent) return base;
+
+            return {
+              ...base,
+              backgroundColor: 'transparent',
+              // Contrast-checked against the surface it sits on, not assumed:
+              // a brand colour authored as a fill is not automatically legible
+              // as text.
+              color: ensureContrast(accent, surface, AA_NORMAL),
+              border: `${Math.max(shape.borderWidth, 1)}px solid ${accent}`,
+            };
+          },
+        },
       },
       MuiIconButton: {
         defaultProps: { size: variants.controlSize },

@@ -259,3 +259,65 @@ describe('what a tenant actually reads', () => {
     }
   }
 });
+
+describe('a chip that reports is not a chip that acts', () => {
+  /**
+   * Reported from a screenshot: "55 Nodes" was a solid blue pill sitting beside
+   * a solid blue "New Chat" button. Same fill, same weight, same radius — but
+   * one is a control and the other is a read-only count, so the only way to
+   * learn the chip does nothing was to click it.
+   *
+   * The distinction is drawn from whether the chip is interactive, so it holds
+   * for every tenant and every caller rather than depending on each one
+   * remembering.
+   */
+  const chipStyle = (
+    theme: ReturnType<typeof buildTheme>,
+    ownerState: { color?: string; clickable?: boolean; onClick?: () => void },
+  ) => {
+    const root = theme.components?.MuiChip?.styleOverrides?.root;
+    return typeof root === 'function'
+      ? (root as (arg: { ownerState: unknown }) => Record<string, unknown>)({ ownerState })
+      : (root as Record<string, unknown>);
+  };
+
+  for (const [id, tenant] of tenants) {
+    for (const dark of [false, true]) {
+      const mode = dark ? 'dark' : 'light';
+
+      it(`${id} in ${mode} draws a read-only chip differently from a control`, () => {
+        const theme = buildTheme(tenant, dark);
+        const readOnly = chipStyle(theme, { color: 'primary' });
+        const control = chipStyle(theme, { color: 'primary', clickable: true });
+
+        expect(readOnly.backgroundColor).toBe('transparent');
+        expect(readOnly.border).toBeDefined();
+        // The interactive one keeps whatever fill the tenant declared.
+        expect(control.backgroundColor).toBeUndefined();
+      });
+
+      it(`${id} in ${mode} keeps read-only chip text readable`, () => {
+        // An outlined chip takes its colour from a brand value authored as a
+        // fill. Legible on a button is not legible as text.
+        const theme = buildTheme(tenant, dark);
+
+        for (const colour of ['primary', 'secondary']) {
+          const style = chipStyle(theme, { color: colour });
+          const ratio = contrastRatio(
+            style.color as string,
+            theme.palette.background.paper,
+          );
+          expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
+        }
+      });
+    }
+  }
+
+  it('leaves a chip with no brand colour alone', () => {
+    // The entity-type chips in the retrieval panel are unselected `default`
+    // chips. Nothing here should touch them.
+    const style = chipStyle(buildTheme(TENANTS[DEFAULT_TENANT_ID]!, false), {});
+
+    expect(style.backgroundColor).toBeUndefined();
+  });
+});
