@@ -23,6 +23,7 @@ import {
   exportGraphToJsonLD,
 } from '@/utils/exportUtils';
 import { readJson, readString, remove, writeJson, writeString } from '@/utils/storage';
+import { evict, saveWithRoom } from '@/utils/eviction';
 import { fetchBackends } from '@/api/backends';
 import { RetrievalControls } from './components/RetrievalControls';
 import {
@@ -157,20 +158,40 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
   useEffect(() => {
     if (!hydrated.current || !currentConversationId || messages.length === 0) return;
 
-    const saved =
-      writeJson(keys.conversation(currentConversationId), messages) &&
-      writeJson(keys.graph(currentConversationId), graphData);
+    // The conversation on screen is never a candidate for eviction: it is the
+    // one thing the reader is definitely still using.
+    const protect = [
+      keys.conversation(currentConversationId),
+      keys.graph(currentConversationId),
+    ];
+
+    // Trim before writing, so the common case is a write with room already
+    // made; `saveWithRoom` covers the case the estimate got wrong, because the
+    // browser counts the quota differently and other tabs share the origin.
+    evict(window.localStorage, { protect });
+
+    const saved = saveWithRoom(
+      window.localStorage,
+      () =>
+        writeJson(keys.conversation(currentConversationId), messages) &&
+        writeJson(keys.graph(currentConversationId), graphData),
+      { protect },
+    );
 
     if (!saved) {
       setNotice('This conversation could not be saved — browser storage is full.');
     }
-  }, [messages, graphData, currentConversationId]);
+  }, [messages, graphData, currentConversationId, keys]);
 
+  // Both values, and the keys they are written under, belong in the
+  // dependencies. Listing only `queryHistory` meant a changed retrieval setting
+  // was persisted whenever a *query* happened to be recorded and not otherwise —
+  // so a knob turned and then left alone was silently forgotten on reload.
   useEffect(() => {
     if (!hydrated.current) return;
     writeJson(keys.retrieval, retrieval);
     writeJson(keys.history, queryHistory);
-  }, [queryHistory]);
+  }, [queryHistory, retrieval, keys]);
 
   useEffect(() => {
     writeString(THEME_KEY, darkMode ? 'dark' : 'light');
@@ -191,7 +212,9 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
     setCurrentStatus('');
     setIsStreaming(false);
     writeString(keys.current, id);
-  }, []);
+    // Same reason as the others: without `keys`, starting a new chat after a
+    // tenant switch records it under the previous tenant's pointer.
+  }, [keys]);
 
   const handleLoadConversation = useCallback((conversationId: string) => {
     abortRef.current?.abort();
@@ -202,7 +225,11 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
     setMessages(readJson<Message[]>(keys.conversation(conversationId), []));
     setGraphData(readJson<GraphData>(keys.graph(conversationId), EMPTY_GRAPH));
     setSidebarOpen(false);
-  }, []);
+    // `keys` belongs in the dependencies: without it this callback keeps the
+    // keys it was created with, so loading a conversation after a tenant switch
+    // reads the previous tenant's storage. That is the leak the scoped keys
+    // exist to prevent, reintroduced by a stale closure.
+  }, [keys]);
 
   const handleDeleteConversation = useCallback(
     (conversationId: string) => {
@@ -214,7 +241,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
         handleNewChat();
       }
     },
-    [currentConversationId, handleNewChat],
+    [currentConversationId, handleNewChat, keys],
   );
 
   const handleStop = useCallback(() => {
