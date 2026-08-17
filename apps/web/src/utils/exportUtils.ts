@@ -1,12 +1,34 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+/**
+ * jsPDF is loaded when somebody exports, not when the app opens.
+ *
+ * Statically imported it sat in the main chunk with html2canvas and dompurify
+ * behind it — roughly 400 KB of a 1.2 MB bundle, downloaded and parsed by every
+ * visitor to pay for a button most of them never press. A dynamic import moves
+ * the whole family into a chunk fetched on the first export.
+ *
+ * Loaded once and remembered: the second export should not wait again, and the
+ * browser would serve it from cache anyway but the module still has to be
+ * re-evaluated.
+ */
+let pdfToolkit: Promise<{
+  jsPDF: typeof import('jspdf').jsPDF;
+  autoTable: typeof import('jspdf-autotable').default;
+}> | null = null;
+
+const loadPdfToolkit = () => {
+  pdfToolkit ??= Promise.all([import('jspdf'), import('jspdf-autotable')]).then(
+    ([pdf, table]) => ({ jsPDF: pdf.jsPDF, autoTable: table.default }),
+  );
+  return pdfToolkit;
+};
 import { Message, GraphData } from '@/types';
 
-export const exportConversationToPDF = (
+export const exportConversationToPDF = async (
   messages: Message[],
   conversationId: string,
   brandName = 'Conversation',
 ) => {
+  const { jsPDF, autoTable } = await loadPdfToolkit();
   const doc = new jsPDF();
   
   // Add title
@@ -164,11 +186,12 @@ export const exportGraphToJsonLD = (graphData: GraphData, conversationId: string
   document.body.removeChild(link);
 };
 
-export const exportGraphToPDF = (
+export const exportGraphToPDF = async (
   graphData: GraphData,
   conversationId: string,
   brandName = 'Knowledge Graph',
 ) => {
+  const { jsPDF, autoTable } = await loadPdfToolkit();
   const doc = new jsPDF();
   
   // Add title

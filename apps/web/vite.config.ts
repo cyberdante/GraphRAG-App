@@ -19,6 +19,22 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split the libraries that change on their own schedule from the code
+        // that changes every commit. A one-chunk bundle means every deploy
+        // invalidates React, MUI and D3 along with it, so a returning visitor
+        // re-downloads 1.2 MB to receive a changed button label.
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          mui: ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+          d3: ['d3'],
+        },
+      },
+    },
+  },
+
   test: {
     environment: 'jsdom',
     globals: true,
