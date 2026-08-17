@@ -245,11 +245,34 @@ describe('what a tenant actually reads', () => {
     ['body text on a card', theme.palette.text.primary, theme.palette.background.paper],
   ];
 
+  /**
+   * Brand colours used *as text*, which only dark mode is held to.
+   *
+   * The pair the first list missed, and the one that failed: a tenant may
+   * declare text or outlined buttons, and MUI then renders `primary.main` as
+   * the label itself rather than as a fill. Checking contrastText-on-main
+   * covered the contained case alone, and meridian's amber sat at 3.40:1 on the
+   * dark bar.
+   *
+   * Asserted in dark mode only, matching the stance the theme already takes:
+   * dark surfaces are our derivation, so adapting the colour there is our job,
+   * while a tenant's light-mode values are used exactly as authored. Acme's own
+   * #1976d2 is 4.25:1 as text on its page background — a fact about the colour
+   * they chose, not a defect we introduced, and one the rendered-contrast check
+   * in e2e/accessibility.spec.ts catches if a component ever puts it there.
+   */
+  const textPairs = (theme: ReturnType<typeof buildTheme>) => [
+    ['brand as text on a card', theme.palette.primary.main, theme.palette.background.paper],
+    ['brand as text on the page', theme.palette.primary.main, theme.palette.background.default],
+    ['secondary as text on a card', theme.palette.secondary.main, theme.palette.background.paper],
+  ];
+
   for (const [id, tenant] of tenants) {
     for (const dark of [false, true]) {
       it(`${id} in ${dark ? 'dark' : 'light'} mode meets AA everywhere`, () => {
         const theme = buildTheme(tenant, dark);
-        const failures = pairs(theme)
+        const checked = dark ? [...pairs(theme), ...textPairs(theme)] : pairs(theme);
+        const failures = checked
           .map(([what, fg, bg]) => [what, contrastRatio(fg as string, bg as string)] as const)
           .filter(([, ratio]) => ratio < AA_NORMAL)
           .map(([what, ratio]) => `${what}: ${ratio.toFixed(2)}`);

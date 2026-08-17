@@ -12,7 +12,7 @@
 
 import { alpha, type Theme } from '@mui/material';
 import type { Tenant } from '@ragstone/shared';
-import { AA_LARGE, ensureContrast, luminance, readableOn } from './contrast';
+import { AA_LARGE, AA_NORMAL, ensureContrast, luminance, readableOn } from './contrast';
 
 export interface GraphPalette {
   canvas: string;
@@ -51,7 +51,11 @@ export function graphPalette(theme: Theme, tenant: Tenant): GraphPalette {
     arrow: alpha(ink, 0.5),
     nodeStroke: canvas,
     label: ink,
-    sublabel: alpha(ink, 0.7),
+    // Derived to meet the text threshold rather than set to an arbitrary
+    // fraction. A flat 70% of the ink rendered #858585 on a white canvas —
+    // 3.69:1 at 12px, below AA — and the node type beneath every node and the
+    // label on every edge are both text, whatever else the canvas holds.
+    sublabel: ensureContrast(alpha(ink, 0.7), canvas, AA_NORMAL),
     // Node colours are authored against the tenant's own light canvas. On the
     // derived dark canvas several of them dropped below 3:1 and became hard to
     // separate from the background. Adapted in dark mode for the same reason

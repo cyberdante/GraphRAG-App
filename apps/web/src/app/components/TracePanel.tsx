@@ -72,8 +72,11 @@ export const TracePanel: React.FC<TracePanelProps> = ({ trace }) => {
           }}
         />
         <Typography variant="caption">Trace</Typography>
+        {/* No opacity on the summary. The enclosing text is already
+            `text.secondary`, which is translucent; multiplying the two put it
+            at 3.69:1 — de-emphasis is not free once the colour is muted. */}
         {!open && summary.length > 0 && (
-          <Typography variant="caption" sx={{ opacity: 0.8 }}>
+          <Typography variant="caption">
             · {summary.join(' · ')}
           </Typography>
         )}

@@ -149,12 +149,13 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
 
         {/* Actions */}
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title="More options">
+          <Tooltip title="More options" describeChild>
             <span>
               <IconButton
                 onClick={(e) => setAnchorEl(e.currentTarget)}
                 disabled={disabled}
                 color="primary"
+                aria-label="More options"
               >
                 <MoreVertIcon />
               </IconButton>
@@ -162,14 +163,14 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
           </Tooltip>
 
           {isStreaming ? (
-            <Tooltip title="Stop generating">
+            <Tooltip title="Stop generating" describeChild>
               <span>
                 <IconButton
                   onClick={onStop}
                   aria-label="Stop generating"
                   sx={{
                     bgcolor: 'error.main',
-                    color: 'white',
+                    color: 'error.contrastText',
                     '&:hover': { bgcolor: 'error.dark' }
                   }}
                 >
@@ -178,7 +179,7 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
               </span>
             </Tooltip>
           ) : (
-            <Tooltip title="Send query">
+            <Tooltip title="Send query" describeChild>
               <span>
                 <IconButton
                   onClick={handleSubmit}
@@ -187,7 +188,7 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
                   color="primary"
                   sx={{
                     bgcolor: 'primary.main',
-                    color: 'white',
+                    color: 'primary.contrastText',
                     '&:hover': {
                       bgcolor: 'primary.dark'
                     },

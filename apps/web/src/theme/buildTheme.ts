@@ -9,7 +9,7 @@
 
 import { createTheme, type Theme, type ThemeOptions } from '@mui/material';
 import type { Tenant, TenantVariants } from '@ragstone/shared';
-import { AA_LARGE, AA_NORMAL, ensureContrast, readableOn } from './contrast';
+import { AA_NORMAL, ensureContrast, readableOn } from './contrast';
 
 /** Every Material elevation flattened; borders or nothing carry separation. */
 const NO_SHADOWS = Array(25).fill('none') as ThemeOptions['shadows'];
@@ -36,8 +36,14 @@ export function buildTheme(tenant: Tenant, darkMode: boolean): Theme {
   // meridian's slate secondary reached 1.65:1 on the dark panel. Dark mode is
   // our derivation, so adapting the colour there is our job; the tenant's own
   // light-mode values stay exactly as they wrote them.
+  // AA_NORMAL, not AA_LARGE. A brand colour on a dark surface is not only a
+  // fill: a tenant that declares text or outlined buttons has MUI render
+  // `primary.main` as the label itself, and meridian's amber landed at 3.40:1
+  // on the dark bar — fine for a border, below AA for words. Holding every
+  // adapted brand colour to the text threshold covers both uses, and costs
+  // only a slightly lighter fill.
   const forSurface = (color: string) =>
-    darkMode ? ensureContrast(color, surface, AA_LARGE) : color;
+    darkMode ? ensureContrast(color, surface, AA_NORMAL) : color;
 
   // 'outlined' draws a border; 'flat' draws nothing at all and relies on the
   // surface colour differing from the page.

@@ -466,23 +466,23 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
               label="Labels"
               sx={{ mr: 2 }}
             />
-            <Tooltip title="Zoom In">
+            <Tooltip title="Zoom In" describeChild>
               <span>
-                <IconButton onClick={handleZoomIn}>
+                <IconButton onClick={handleZoomIn} aria-label="Zoom In">
                   <ZoomInIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
-            <Tooltip title="Zoom Out">
+            <Tooltip title="Zoom Out" describeChild>
               <span>
-                <IconButton onClick={handleZoomOut}>
+                <IconButton onClick={handleZoomOut} aria-label="Zoom Out">
                   <ZoomOutIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
-            <Tooltip title="Center View">
+            <Tooltip title="Center View" describeChild>
               <span>
-                <IconButton onClick={handleCenter}>
+                <IconButton onClick={handleCenter} aria-label="Fit to view">
                   <CenterFocusStrongIcon fontSize="small" />
                 </IconButton>
               </span>
