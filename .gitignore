@@ -31,3 +31,9 @@ __pycache__/
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# browser checks
+test-results/
+playwright-report/
+blob-report/
+.playwright/
