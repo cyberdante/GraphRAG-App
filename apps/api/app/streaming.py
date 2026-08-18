@@ -10,7 +10,7 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 
-from . import ontology
+from . import domains
 from .attachments import Attachment, AttachmentStore
 from .attachments import as_candidates as attachment_candidates
 from .config import Settings
@@ -36,10 +36,15 @@ from .retrieval.schema import with_declared
 logger = logging.getLogger(__name__)
 
 
-def _graph_payload(graph: object) -> dict:
-    """A graph frame carries its JSON-LD so an export needs no second request."""
+def _graph_payload(graph: object, domain: domains.Domain) -> dict:
+    """A graph frame carries its JSON-LD so an export needs no second request.
+
+    The domain is passed rather than defaulted: an export names the vocabulary
+    it is written in, and a deployment holding clinical trials must not hand out
+    a document claiming to be supply chain.
+    """
     payload = graph.model_dump(exclude_none=True)  # type: ignore[attr-defined]
-    payload["jsonLD"] = graph_to_jsonld(graph)  # type: ignore[arg-type]
+    payload["jsonLD"] = graph_to_jsonld(graph, domain)  # type: ignore[arg-type]
     return payload
 
 
@@ -65,6 +70,7 @@ async def stream_answer(
     single `done`. Any failure ends the stream with `error` instead.
     """
     try:
+        domain = domains.get(settings.default_domain)
         max_nodes = request.retrieval.graph.max_nodes
         query_text = request.input.text
 
@@ -138,7 +144,7 @@ async def stream_answer(
         # something to draw while ranking runs.
         yield frame(
             "graph",
-            _graph_payload(graph_from_candidates(candidates, max_nodes=min(8, max_nodes))),
+            _graph_payload(graph_from_candidates(candidates, max_nodes=min(8, max_nodes)), domain),
         )
         await asyncio.sleep(pacing * 6)
 
@@ -172,7 +178,7 @@ async def stream_answer(
         # citations and the drawing all describe the same set.
         graph = graph_from_candidates(top, max_nodes=max_nodes)
         top = grounded_in(graph, top)
-        yield frame("graph", _graph_payload(graph))
+        yield frame("graph", _graph_payload(graph, domain))
         await asyncio.sleep(pacing * 4)
 
         yield frame(
@@ -186,7 +192,7 @@ async def stream_answer(
         # someone else's data wrongly. Failure here costs the card, not the
         # answer — retrieval already worked.
         try:
-            graph_schema = with_declared(await store.schema(), ontology.SHAPES)
+            graph_schema = with_declared(await store.schema(), domain.shapes)
         except Exception:
             logger.warning("Could not read the schema from %s.", store.name, exc_info=True)
             graph_schema = None

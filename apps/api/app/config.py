@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # an endpoint, which would make this service an SSRF vector into the VPC.
     default_backend: str = "fixtures"
 
+    #: Which subject this deployment is about when nothing names one. A domain
+    #: declares the classes and properties a graph uses; a tenant declares how
+    #: they look.
+    default_domain: str = "supply-chain"
+
     # Retrieval shaping.
     #: How much evidence retrieval may gather before ranking. Larger than
     #: top_k so ranking has something to choose between.

@@ -8,8 +8,9 @@ classes describes someone else's data wrongly.
 
 import pytest
 
-from app import ontology
+from app.domains import SUPPLY_CHAIN as SUPPLY_CHAIN_DOMAIN
 from app.llm.context import render_context
+from app.ontology import classes_of
 from app.retrieval.fixture_store import FixtureGraphStore
 from app.retrieval.models import Candidate
 from app.retrieval.schema import (
@@ -207,12 +208,12 @@ class TestDeclaredShapesFillTheGaps:
             GraphSchema(
                 edges=[
                     edge(domain, predicate, target, 1)
-                    for domain, predicate, target in ontology.SHAPES[:1]
+                    for domain, predicate, target in SUPPLY_CHAIN_DOMAIN.shapes[:1]
                 ]
-                + [edge(cls, "SEEN", cls, 1) for cls in ontology.CLASSES]
+                + [edge(cls, "SEEN", cls, 1) for cls in classes_of(SUPPLY_CHAIN_DOMAIN)]
             ),
-            ontology.SHAPES,
+            SUPPLY_CHAIN_DOMAIN.shapes,
         )
         planned = {(item.domain, item.predicate, item.range) for item in merged.edges}
 
-        assert set(ontology.SHAPES) <= planned
+        assert set(SUPPLY_CHAIN_DOMAIN.shapes) <= planned

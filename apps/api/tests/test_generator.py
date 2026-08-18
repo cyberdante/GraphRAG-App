@@ -12,8 +12,9 @@ from datetime import datetime
 
 import pytest
 
-from app import ontology
+from app.domains import SUPPLY_CHAIN
 from app.generator import DEFAULT_REFERENCE, GENERATED_PREFIX, generate
+from app.ontology import classes_of, properties_of
 
 
 def test_same_seed_gives_the_same_graph():
@@ -53,9 +54,9 @@ def test_every_type_it_emits_is_declared_in_the_vocabulary():
     graph = generate(60, seed=3)
 
     for node in graph.nodes:
-        assert node.type in ontology.CLASSES, f"undeclared class {node.type}"
+        assert node.type in classes_of(SUPPLY_CHAIN), f"undeclared class {node.type}"
     for edge in graph.edges:
-        assert edge.type in ontology.PROPERTIES, f"undeclared property {edge.type}"
+        assert edge.type in properties_of(SUPPLY_CHAIN), f"undeclared property {edge.type}"
 
 
 def test_it_exercises_the_whole_vocabulary():
@@ -65,7 +66,7 @@ def test_it_exercises_the_whole_vocabulary():
     graph = generate(120, seed=3)
     emitted = {edge.type for edge in graph.edges}
 
-    declared = set(ontology.PROPERTIES) - {"relatedTo"}
+    declared = set(properties_of(SUPPLY_CHAIN)) - {"relatedTo"}
     assert declared - emitted == set(), f"never generated: {declared - emitted}"
 
 

@@ -13,9 +13,16 @@ relationship cannot go undeclared, and a declared term cannot quietly rot.
 import re
 
 from app import fixtures, ontology
+from app.domains import SUPPLY_CHAIN
 from app.fixtures import SUPPLY_CHAIN_GRAPH
 from app.models import GraphData, GraphEdge, GraphNode
-from app.ontology import CLASSES, PROPERTIES, VOCAB, graph_to_jsonld, jsonld_context
+from app.ontology import classes_of, graph_to_jsonld, jsonld_context, properties_of
+
+# The default domain's vocabulary, resolved once so the assertions below read as
+# they did when it was the only one there could be.
+CLASSES = classes_of(SUPPLY_CHAIN)
+PROPERTIES = properties_of(SUPPLY_CHAIN)
+VOCAB = SUPPLY_CHAIN.vocab
 
 
 class TestVocabularyCoversTheData:
@@ -42,14 +49,14 @@ class TestContext:
     def test_undeclared_terms_stay_in_our_namespace(self) -> None:
         # Pointing @vocab at schema.org was the root cause: it made every
         # unmatched term silently claim a schema.org IRI.
-        assert jsonld_context()["@vocab"] == VOCAB
+        assert jsonld_context(SUPPLY_CHAIN)["@vocab"] == VOCAB
 
     def test_properties_are_declared_as_iri_references(self) -> None:
-        context = jsonld_context()
+        context = jsonld_context(SUPPLY_CHAIN)
         assert context["HAS_RISK"] == {"@id": f"{VOCAB}hasRisk", "@type": "@id"}
 
     def test_borrowed_terms_come_from_a_real_vocabulary(self) -> None:
-        assert jsonld_context()["name"] == "schema:name"
+        assert jsonld_context(SUPPLY_CHAIN)["name"] == "schema:name"
 
 
 class TestDocument:
@@ -127,7 +134,7 @@ class TestTheDeclaredShape:
     def test_every_declared_shape_appears_in_the_data(self):
         # A declaration the data contradicts is worse than no declaration: it
         # would send retrieval down a path that returns nothing.
-        undeclared = set(ontology.SHAPES) - self.observed()
+        undeclared = set(SUPPLY_CHAIN.shapes) - self.observed()
 
         assert undeclared == set(), f"declared but never seen: {sorted(undeclared)}"
 
@@ -135,39 +142,39 @@ class TestTheDeclaredShape:
         # The other direction, and the one the original defect lived in: a
         # relationship the vocabulary does not describe is one no consumer can
         # resolve and no traversal can plan around.
-        missing = self.observed() - set(ontology.SHAPES)
+        missing = self.observed() - set(SUPPLY_CHAIN.shapes)
 
         assert missing == set(), f"in the data but undeclared: {sorted(missing)}"
 
     def test_every_shape_uses_declared_classes_and_properties(self):
-        for domain, predicate, target in ontology.SHAPES:
-            assert domain in ontology.CLASSES, f"{domain} is not a declared class"
-            assert target in ontology.CLASSES, f"{target} is not a declared class"
-            assert predicate in ontology.PROPERTIES, f"{predicate} is not a declared property"
+        for domain, predicate, target in SUPPLY_CHAIN.shapes:
+            assert domain in CLASSES, f"{domain} is not a declared class"
+            assert target in CLASSES, f"{target} is not a declared class"
+            assert predicate in PROPERTIES, f"{predicate} is not a declared property"
 
     def test_domain_and_range_are_reported_for_a_declared_predicate(self):
-        assert ontology.domain_of("HAS_RISK") == "Supplier"
-        assert ontology.range_of("HAS_RISK") == "Risk"
+        assert ontology.domain_of("HAS_RISK", SUPPLY_CHAIN) == "Supplier"
+        assert ontology.range_of("HAS_RISK", SUPPLY_CHAIN) == "Risk"
 
     def test_an_undeclared_predicate_reports_neither(self):
         # `relatedTo` is the fallback for a relationship we have not named, so
         # it deliberately has no shape.
-        assert ontology.domain_of("relatedTo") is None
-        assert ontology.range_of("relatedTo") is None
+        assert ontology.domain_of("relatedTo", SUPPLY_CHAIN) is None
+        assert ontology.range_of("relatedTo", SUPPLY_CHAIN) is None
 
 
 class TestTheTurtleDocument:
     def test_declares_every_class(self):
-        turtle = ontology.to_turtle()
+        turtle = ontology.to_turtle(SUPPLY_CHAIN)
 
-        for term in ontology.CLASSES:
+        for term in CLASSES:
             assert f"sc:{term} a owl:Class" in turtle
 
     def test_declares_every_property_with_its_shape(self):
-        turtle = ontology.to_turtle()
+        turtle = ontology.to_turtle(SUPPLY_CHAIN)
 
-        for domain, predicate, target in ontology.SHAPES:
-            local = ontology.PROPERTIES[predicate].rsplit("#", 1)[-1]
+        for domain, predicate, target in SUPPLY_CHAIN.shapes:
+            local = PROPERTIES[predicate].rsplit("#", 1)[-1]
             assert f"sc:{local} a owl:ObjectProperty" in turtle
             assert f"rdfs:domain sc:{domain}" in turtle
             assert f"rdfs:range sc:{target}" in turtle
@@ -175,32 +182,30 @@ class TestTheTurtleDocument:
     def test_mentions_no_term_it_has_not_declared(self):
         # The generated document is the artifact consumers read; a term in it
         # that the vocabulary does not define is the original bug in a new place.
-        turtle = ontology.to_turtle()
+        turtle = ontology.to_turtle(SUPPLY_CHAIN)
         referenced = set(re.findall(r"\bsc:(\w+)\b", turtle))
-        known = set(ontology.CLASSES) | {
-            iri.rsplit("#", 1)[-1] for iri in ontology.PROPERTIES.values()
-        }
+        known = set(CLASSES) | {iri.rsplit("#", 1)[-1] for iri in PROPERTIES.values()}
 
         assert referenced - known == set()
 
     def test_carries_its_own_version(self):
-        assert f'owl:versionInfo "{ontology.VERSION}"' in ontology.to_turtle()
+        assert f'owl:versionInfo "{SUPPLY_CHAIN.version}"' in ontology.to_turtle(SUPPLY_CHAIN)
 
     def test_is_generated_rather_than_maintained(self):
         # Two files describing one vocabulary is how the original defect
         # happened. The document says so, to whoever opens it next.
-        assert "Do not edit by hand" in ontology.to_turtle()
+        assert "Do not edit by hand" in ontology.to_turtle(SUPPLY_CHAIN)
 
 
 class TestExportsNameTheVocabulary:
     def test_a_graph_export_points_at_the_served_document(self):
         document = ontology.graph_to_jsonld(fixtures.SUPPLY_CHAIN_GRAPH)
 
-        assert document["isDefinedBy"] == ontology.ONTOLOGY_PATH
-        assert document["version"] == ontology.VERSION
+        assert document["isDefinedBy"] == SUPPLY_CHAIN.ontology_path
+        assert document["version"] == SUPPLY_CHAIN.version
 
     def test_the_document_is_served(self, client):
-        response = client.get(ontology.ONTOLOGY_PATH)
+        response = client.get(SUPPLY_CHAIN.ontology_path)
 
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/turtle")
@@ -213,4 +218,4 @@ class TestExportsNameTheVocabulary:
         from app.main import app
 
         with TestClient(app) as client:
-            assert client.get(ontology.ONTOLOGY_PATH).text == ontology.to_turtle()
+            assert client.get(SUPPLY_CHAIN.ontology_path).text == ontology.to_turtle(SUPPLY_CHAIN)

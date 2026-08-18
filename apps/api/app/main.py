@@ -4,12 +4,12 @@ from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
-from . import ontology
+from . import domains, ontology
 from .attachments import AttachmentRejected, AttachmentStore
 from .config import Settings, get_settings
 from .llm.generator import AnswerGenerator
 from .llm.registry import build_generator
-from .models import AttachmentInfo, BackendInfo, QueryRequest
+from .models import AttachmentInfo, BackendInfo, DomainInfo, QueryRequest
 from .retrieval.registry import BackendRegistry, build_registry
 from .retrieval.store import UnknownBackendError
 from .streaming import stream_answer
@@ -87,19 +87,45 @@ async def backends(registry: BackendRegistry = Depends(get_registry)) -> list[Ba
     ]
 
 
-@app.get("/ontology/supply-chain.ttl", response_class=PlainTextResponse)
-async def ontology_document() -> PlainTextResponse:
-    """The vocabulary, as a document somebody else can fetch.
+@app.get("/api/domains", response_model=list[DomainInfo])
+async def list_domains(settings: Settings = Depends(get_settings)) -> list[DomainInfo]:
+    """The subjects this deployment can hold a graph about.
+
+    Offered so the console takes its entity types from what the deployment
+    declares rather than from the keys of its own colour map — which is how a
+    type came to exist because somebody had given it a colour.
+    """
+    return [
+        DomainInfo(
+            id=domain.id,
+            label=domain.label,
+            version=domain.version,
+            classes=list(domain.classes),
+            starters=list(domain.starters),
+            ontology=domain.ontology_path,
+            default=domain.id == settings.default_domain,
+        )
+        for domain in domains.DOMAINS.values()
+    ]
+
+
+@app.get("/ontology/{domain_id}.ttl", response_class=PlainTextResponse)
+async def ontology_document(domain_id: str) -> PlainTextResponse:
+    """One vocabulary, as a document somebody else can fetch.
 
     An ontology that exists only as a Python dictionary is not an ontology
     anyone can use. The JSON-LD exports name this URL, so a consumer holding a
     graph can resolve what its terms mean rather than guessing from their names.
 
-    Cached for an hour: it changes when the version does, and the version is in
-    the document.
+    A domain this deployment does not hold is a 404 rather than a fallback: an
+    unknown *tenant* should still render, but an unknown *document* that quietly
+    returns a different vocabulary would be worse than not answering.
     """
+    if domain_id not in domains.DOMAINS:
+        raise HTTPException(status_code=404, detail=f"No domain named {domain_id!r}.")
+
     return PlainTextResponse(
-        content=ontology.to_turtle(),
+        content=ontology.to_turtle(domains.DOMAINS[domain_id]),
         media_type="text/turtle; charset=utf-8",
         headers={"Cache-Control": "public, max-age=3600"},
     )

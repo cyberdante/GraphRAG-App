@@ -76,6 +76,22 @@ class BackendInfo(BaseModel):
     default: bool
 
 
+class DomainInfo(BaseModel):
+    """One subject this deployment can hold a graph about."""
+
+    id: str
+    label: str
+    version: str
+    #: Node types this domain declares. The console offers these rather than
+    #: inferring them from a colour map.
+    classes: list[str]
+    #: Questions worth asking of this shape, before anyone has typed.
+    starters: list[str]
+    #: Where the vocabulary is served.
+    ontology: str
+    default: bool
+
+
 class AttachmentInfo(BaseModel):
     """One uploaded document, or one refusal.
 
