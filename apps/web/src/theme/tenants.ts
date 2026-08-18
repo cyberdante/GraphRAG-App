@@ -132,6 +132,10 @@ export const meridian: Tenant = {
 /** Editorial: serif, soft, generous. */
 export const lumen: Tenant = {
   id: 'lumen',
+  // A different subject, which is what makes domain packs visible rather
+  // than only asserted: switching to this brand changes the entity types the
+  // console offers, not just its colours.
+  domain: 'clinical-trials',
   brand: { name: 'Lumen Intelligence', initials: 'LI' },
   palette: {
     primary: '#4C1D95',
@@ -158,23 +162,23 @@ export const lumen: Tenant = {
     letterSpacing: '0',
   },
   copy: {
-    inputPlaceholder: 'What would you like to know?',
+    inputPlaceholder: 'Ask a question about your trials...',
     welcome:
       'A research assistant over your knowledge graph. Ask in plain language; every claim is traceable to its source.',
     starters: [
-      'Summarise the current risks',
-      'How are these entities connected?',
-      'What changed this quarter?',
+      'Which sites reported the most adverse events?',
+      'Show enrolment by site',
+      'Which trials share an investigator?',
     ],
   },
   graph: {
     nodeColors: {
-      Supplier: '#4C1D95',
-      Shipment: '#0E7490',
-      Product: '#9D174D',
-      Location: '#78716C',
-      Risk: '#B91C1C',
-      RiskSignal: '#C2410C',
+      Trial: '#4C1D95',
+      Site: '#0E7490',
+      Investigator: '#9D174D',
+      Participant: '#78716C',
+      AdverseEvent: '#B91C1C',
+      Sponsor: '#C2410C',
     },
     defaultNode: '#A8A29E',
     background: '#F5F0EC',

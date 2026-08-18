@@ -20,7 +20,22 @@ import { MODES, TENANTS, askAQuestion, openConsole, settle } from './support';
 /** The drawing surface, excluded from comparison but not from the page. */
 const GRAPH = 'svg[width]';
 
+// Screenshots are only comparable where they were taken. Baselines come from
+// mcr.microsoft.com/playwright:v1.62.1-noble, and macOS renders glyphs
+// differently enough to exceed the pixel budget on every shot — which reads as
+// "everything is broken" rather than "you are on the wrong platform".
+//
+// So this suite runs where the comparison means something and says how to run
+// it elsewhere. The accessibility and eviction suites have no such constraint
+// and run anywhere.
+const inBaselineEnvironment = Boolean(process.env.CI);
+
 test.describe('appearance', () => {
+  test.skip(
+    !inBaselineEnvironment,
+    'Screenshots are compared against Linux baselines. Run: pnpm e2e:baselines',
+  );
+
   for (const tenant of TENANTS) {
     for (const mode of MODES) {
       test(`${tenant} in ${mode} — empty state`, async ({ page }) => {

@@ -38,8 +38,18 @@ earlier session serves the build it started with, so a source change appears to
 have no effect. This cost real time; if a result looks impossible, kill whatever
 holds port 4173 and run again. CI always builds fresh.
 
-**Screenshots are platform-specific.** Baselines are generated in the same
-container CI uses — see the `appearance` job in `.github/workflows/ci.yml`.
+**Screenshots are platform-specific, and now strictly so.** Baselines are
+generated in the same container CI uses — see the `appearance` job in
+`.github/workflows/ci.yml`. The appearance suite therefore skips outside that
+environment rather than failing every shot on macOS glyph rendering; run
+`pnpm e2e:baselines` to exercise it. Accessibility and eviction run anywhere.
+
+**The pixel budget is small on purpose.** It was `maxDiffPixelRatio: 0.01`,
+which on a 1280x900 shot allows 11,520 changed pixels — enough to hide a
+tenant's entire welcome screen changing. That was not hypothetical: three
+starter questions and a placeholder were rewritten and every screenshot still
+passed, because the glyphs that differed came to roughly 3,500 pixels. It is
+now an absolute `maxDiffPixels: 250`.
 
 **The build pins every flag the screenshots depend on.** Vite loads `.env.local`
 for production builds as well as dev, so a developer's local file would

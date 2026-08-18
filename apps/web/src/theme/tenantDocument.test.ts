@@ -132,3 +132,48 @@ describe('the served documents', () => {
     expect(tenant).toEqual(TENANTS[tenant.id]);
   });
 });
+
+describe('a tenant on another subject', () => {
+  /**
+   * A domain declares which types exist; a tenant declares how they look. The
+   * merge has to respect that: inheriting the base tenant's colours across a
+   * domain boundary leaves a clinical console holding a colour for Supplier —
+   * a type its graph cannot contain, offered by a palette with no business
+   * declaring it. Downstream, that colour map was also the type registry, so
+   * the console would have offered Supplier as something to filter by.
+   */
+  it('reads the domain a document declares', () => {
+    const { tenant } = parseTenant({ domain: 'clinical-trials' }, acme);
+
+    expect(tenant.domain).toBe('clinical-trials');
+  });
+
+  it('does not inherit colours for types it cannot hold', () => {
+    const { tenant } = parseTenant(
+      { domain: 'clinical-trials', graph: { nodeColors: { Trial: '#123456' } } },
+      acme,
+    );
+
+    expect(Object.keys(tenant.graph.nodeColors)).toEqual(['Trial']);
+    expect(tenant.graph.nodeColors.Supplier).toBeUndefined();
+  });
+
+  it('still inherits colours within the same subject', () => {
+    // The repair that made partial documents workable is unchanged where it
+    // still makes sense: same types, so the base's colours apply.
+    const { tenant } = parseTenant(
+      { graph: { nodeColors: { Supplier: '#123456' } } },
+      acme,
+    );
+
+    expect(tenant.graph.nodeColors.Supplier).toBe('#123456');
+    expect(tenant.graph.nodeColors.Risk).toBe(acme.graph.nodeColors.Risk);
+  });
+
+  it('treats a document with no domain as the base tenant’s subject', () => {
+    const { tenant } = parseTenant({}, acme);
+
+    expect(tenant.domain).toBe(acme.domain);
+    expect(tenant.graph.nodeColors).toEqual(acme.graph.nodeColors);
+  });
+});

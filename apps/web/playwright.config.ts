@@ -36,10 +36,18 @@ export default defineConfig({
 
   expect: {
     toHaveScreenshot: {
-      // Font hinting and antialiasing differ slightly even between runs on the
-      // same machine. Zero tolerance produces failures nobody can act on, which
-      // is how a visual suite gets switched off.
-      maxDiffPixelRatio: 0.01,
+      // An absolute budget rather than a ratio, and a small one.
+      //
+      // 0.01 of a 1280x900 shot is 11,520 pixels — enough to hide a tenant's
+      // entire welcome screen changing. That was not hypothetical: three
+      // starter questions and a placeholder were rewritten and every screenshot
+      // still passed, because the glyphs that differed came to about 3,500
+      // pixels. A visual suite that cannot see that is reassurance, not a test.
+      //
+      // A few hundred pixels still absorbs the antialiasing jitter these
+      // baselines were loosened for, and they are photographed in the same
+      // container CI runs in, so there is little jitter left to absorb.
+      maxDiffPixels: 250,
       animations: 'disabled',
     },
   },

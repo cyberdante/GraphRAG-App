@@ -173,8 +173,17 @@ export function parseTenant(input: unknown, base: Tenant): ParsedTenant {
           return base.typography.buttonTextTransform;
         })();
 
-  // Node colours are open-ended: a domain pack may define types we do not know.
-  const nodeColors: Record<string, string> = { ...base.graph.nodeColors };
+  // Node colours are open-ended: a domain declares types we do not know here.
+  //
+  // Inherited from the base tenant only while both are about the same subject.
+  // A tenant on another domain has different types entirely, so carrying the
+  // base's colours across would leave a clinical console holding a colour for
+  // Supplier — a type its graph cannot contain, offered by a palette that had
+  // no business declaring it.
+  const declaredDomain =
+    typeof input.domain === 'string' && input.domain ? input.domain : undefined;
+  const sameSubject = (declaredDomain ?? base.domain) === base.domain;
+  const nodeColors: Record<string, string> = sameSubject ? { ...base.graph.nodeColors } : {};
   const declaredColors = section(graphSource, 'nodeColors');
   for (const [type_, value] of Object.entries(declaredColors)) {
     if (typeof value === 'string' && HEX.test(value)) {
@@ -242,6 +251,9 @@ export function parseTenant(input: unknown, base: Tenant): ParsedTenant {
       buttonTextTransform,
       letterSpacing: type.text('letterSpacing', base.typography.letterSpacing),
     },
+    // Read here or a tenant document declaring a subject is silently ignored,
+    // which is the same failure as not supporting one.
+    ...(declaredDomain ? { domain: declaredDomain } : {}),
     copy: {
       inputPlaceholder: copy.text('inputPlaceholder', base.copy.inputPlaceholder),
       welcome: copy.text('welcome', base.copy.welcome),

@@ -89,6 +89,25 @@ export interface BackendInfo {
   default: boolean;
 }
 
+/** One subject this deployment can hold a graph about, from GET /api/domains. */
+export interface DomainInfo {
+  id: string;
+  label: string;
+  version: string;
+  /**
+   * Node types this domain declares.
+   *
+   * The console offers these rather than reading the keys of its own colour
+   * map: a type is a property of the subject, not of the branding.
+   */
+  classes: string[];
+  /** Questions worth asking of this shape, before anyone has typed. */
+  starters: string[];
+  /** Where the vocabulary is served. */
+  ontology: string;
+  default: boolean;
+}
+
 /** One uploaded document, or one refusal, as reported by POST /api/attachments. */
 export interface AttachmentInfo {
   id: string;

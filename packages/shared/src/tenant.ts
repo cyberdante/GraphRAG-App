@@ -120,6 +120,14 @@ export interface TenantCopy {
 
 export interface Tenant {
   id: string;
+  /**
+   * Which subject this tenant's graph is about, from GET /api/domains.
+   *
+   * A domain declares which types exist; this tenant declares how they look.
+   * Absent means the deployment's default, and a domain this deployment does
+   * not hold falls back rather than leaving the console with no types at all.
+   */
+  domain?: string;
   brand: TenantBrand;
   palette: TenantPalette;
   shape: TenantShape;

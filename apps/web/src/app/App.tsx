@@ -25,6 +25,7 @@ import {
 import { readJson, readString, remove, writeJson, writeString } from '@/utils/storage';
 import { evict, saveWithRoom } from '@/utils/eviction';
 import { fetchBackends } from '@/api/backends';
+import { fetchDomains, resolveDomain } from '@/api/domains';
 import { RetrievalControls } from './components/RetrievalControls';
 import {
   DEFAULT_SETTINGS,
@@ -34,7 +35,7 @@ import {
   type RetrievalSettings,
 } from '@/utils/retrievalSettings';
 import { THEME_KEY, keysFor, purgeLegacyKeys } from '@/utils/conversationStore';
-import type { Tenant, BackendInfo
+import type { Tenant, BackendInfo, DomainInfo
 } from '@ragstone/shared';
 import type { GraphData, Message, QueryHistoryItem, QueryRequest } from '@/types';
 
@@ -74,6 +75,10 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
   const [retrievalOpen, setRetrievalOpen] = useState(false);
   const [retrieval, setRetrieval] = useState<RetrievalSettings>(DEFAULT_SETTINGS);
   const [backends, setBackends] = useState<BackendInfo[]>([]);
+  const [domains, setDomains] = useState<DomainInfo[]>([]);
+  // Which subject this tenant is about, resolved from what the deployment holds.
+  const domain = useMemo(() => resolveDomain(domains, tenant.domain), [domains, tenant.domain]);
+
 
   const handleTenantChange = useCallback(async (id: string) => {
     setSwitchingTenant(true);
@@ -104,6 +109,15 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
     }
   }, []);
 
+
+  // What this deployment can hold a graph about. Entity types come from here
+  // rather than from the keys of the tenant's colour map, where a type existed
+  // because somebody had given it a colour.
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchDomains('', controller.signal).then(setDomains);
+    return () => controller.abort();
+  }, []);
 
   // What this deployment can retrieve from. The list is the server's to give;
   // a request names a backend and never an endpoint.
@@ -419,7 +433,11 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
           settings={retrieval}
           onChange={setRetrieval}
           backends={backends}
-          entityTypes={Object.keys(tenant.graph.nodeColors)}
+          // The domain is the source; the tenant's own colour keys are the
+          // fallback for a build with no service behind it — VITE_USE_MOCK
+          // runs the console with no API at all, and offering no types there
+          // would be a worse answer than offering the ones it does know.
+          entityTypes={domain?.classes ?? Object.keys(tenant.graph.nodeColors)}
           disabled={isStreaming}
         />
 
@@ -479,7 +497,14 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
                   currentStatus={currentStatus}
                   onRetry={handleRetry}
                   brand={tenant.brand}
-                  copy={tenant.copy}
+                  // A tenant's own phrasing wins; the domain supplies starters
+                  // when a tenant declares none, which is what makes a subject
+                  // usable before anyone has written copy for it.
+                  copy={
+                    tenant.copy.starters.length > 0 || !domain
+                      ? tenant.copy
+                      : { ...tenant.copy, starters: domain.starters }
+                  }
                 />
               </Box>
               <QueryInput
