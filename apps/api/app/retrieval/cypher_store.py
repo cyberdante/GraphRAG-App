@@ -169,9 +169,7 @@ class CypherGraphStore:
         async with self._driver.session(database=self._database) as session:
             return await self._read_schema(session)
 
-    async def _read_schema(
-        self, session, recorder: QueryRecorder | None = None
-    ) -> GraphSchema:
+    async def _read_schema(self, session, recorder: QueryRecorder | None = None) -> GraphSchema:
         rows = await self._run(
             session,
             _SCHEMA_SHAPES,

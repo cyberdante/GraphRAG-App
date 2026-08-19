@@ -58,7 +58,9 @@ class TestABackendThatIssuesNothing:
 class TestWhatReachesTheClient:
     def test_reports_each_recorded_query(self):
         recorder = QueryRecorder()
-        recorder.record("entity", "cypher", "  MATCH (n) RETURN n  ", {"limit": 5}, rows=3, elapsed_ms=7)
+        recorder.record(
+            "entity", "cypher", "  MATCH (n) RETURN n  ", {"limit": 5}, rows=3, elapsed_ms=7
+        )
 
         reported = issued_queries(recorder, Settings(_env_file=None))
 
@@ -85,7 +87,9 @@ class TestWhatReachesTheClient:
         # that never ran, and would demonstrate query-building by concatenation
         # to the audience most likely to copy it.
         recorder = QueryRecorder()
-        recorder.record("entity", "cypher", "MATCH (n) WHERE n.id IN $ids RETURN n", {"ids": ["sup_1"]})
+        recorder.record(
+            "entity", "cypher", "MATCH (n) WHERE n.id IN $ids RETURN n", {"ids": ["sup_1"]}
+        )
 
         reported = issued_queries(recorder, Settings(_env_file=None))[0]
 
@@ -149,9 +153,7 @@ class TestAgainstARealDatabase:
         await cypher_store.retrieve(a_request(), recorder)
 
         entity = next(query for query in recorder.queries if query.pass_name == "entity")
-        columns, rows = await cypher_store.run_readonly(
-            entity.text, parameters=entity.parameters
-        )
+        columns, rows = await cypher_store.run_readonly(entity.text, parameters=entity.parameters)
 
         assert "subject_id" in columns
         # Same query, same parameters, same database: the row count must match
@@ -167,8 +169,15 @@ class TestAgainstARealDatabase:
         await cypher_store.retrieve(a_request(), recorder)
         entity = next(query for query in recorder.queries if query.pass_name == "entity")
 
-        with pytest.raises(Exception):
+        from neo4j.exceptions import ClientError
+
+        with pytest.raises(ClientError) as refused:
             await cypher_store.run_readonly(entity.text)
+
+        # Named rather than caught blind: the point is that the values came from
+        # the parameter channel, and only ParameterMissing shows that. Any
+        # exception would also be raised by a typo in the query text.
+        assert "ParameterMissing" in str(refused.value)
 
 
 class TestAQueryThatMatchesNothing:
