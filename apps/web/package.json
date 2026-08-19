@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:mock": "VITE_USE_MOCK=true VITE_TENANT_SWITCHER=true VITE_TENANT= vite build",
+    "build:mock": "VITE_USE_MOCK=true VITE_TENANT_SWITCHER=true VITE_THEME_EDITOR=true VITE_TENANT= vite build",
     "e2e": "playwright test",
     "e2e:update": "playwright test --update-snapshots",
     "e2e:baselines": "bash scripts/baselines.sh --update-snapshots"

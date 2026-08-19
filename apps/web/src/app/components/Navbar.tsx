@@ -22,7 +22,8 @@ import {
   PictureAsPdf as PdfIcon,
   TableChart as CsvIcon,
   Code as JsonIcon,
-  Tune as TuneIcon
+  Tune as TuneIcon,
+  Palette as PaletteIcon
 } from '@mui/icons-material';
 
 interface NavbarProps {
@@ -32,6 +33,8 @@ interface NavbarProps {
   onMenuClick: () => void;
   /** Opens the retrieval controls. */
   onRetrievalClick: () => void;
+  /** Opens the theme editor, when this deployment offers one. */
+  onEditThemeClick?: () => void;
   darkMode: boolean;
   onThemeToggle: () => void;
   onNewChat: () => void;
@@ -46,7 +49,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   brand,
   switcher, 
   onMenuClick,
-  onRetrievalClick, 
+  onRetrievalClick,
+  onEditThemeClick, 
   darkMode, 
   onThemeToggle, 
   onNewChat,
@@ -217,6 +221,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <ListItemText>Export Graph JSON-LD</ListItemText>
           </MenuItem>
         </Menu>
+
+        {onEditThemeClick && (
+          <Tooltip title="Edit brand">
+            <IconButton
+              onClick={onEditThemeClick}
+              sx={{ color: 'text.primary' }}
+              aria-label="Edit brand"
+            >
+              <PaletteIcon />
+            </IconButton>
+          </Tooltip>
+        )}
 
         <Tooltip title="Retrieval settings">
           <IconButton

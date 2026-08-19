@@ -136,3 +136,19 @@ export function availableTenants(): Array<{ id: string; name: string; color: str
     color: tenant.palette.primary,
   }));
 }
+
+/**
+ * Whether the theme editor is offered.
+ *
+ * Gated separately from the switcher and for a sharper reason. The switcher
+ * leaks the *existence* of other brands; the editor lets whoever is looking at
+ * the console rewrite the one they are in. Neither belongs in a client
+ * deployment by default, and a deployment that wants one may not want the
+ * other.
+ */
+export function themeEditorEnabled(): boolean {
+  const flag = import.meta.env.VITE_THEME_EDITOR;
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+  return Boolean(import.meta.env.DEV);
+}

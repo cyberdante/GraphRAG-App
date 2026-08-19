@@ -6,6 +6,7 @@ import {
   loadTenant,
   reportResolution,
   switcherEnabled,
+  themeEditorEnabled,
 } from '@/theme';
 import { Navbar } from './components/Navbar';
 import { QueryInput } from './components/QueryInput';
@@ -27,6 +28,7 @@ import { evict, saveWithRoom } from '@/utils/eviction';
 import { fetchBackends } from '@/api/backends';
 import { fetchDomains, resolveDomain } from '@/api/domains';
 import { RetrievalControls } from './components/RetrievalControls';
+import { ThemeEditor } from './components/ThemeEditor';
 import {
   DEFAULT_SETTINGS,
   parseSettings,
@@ -73,6 +75,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
   // conversations under another's branding.
   const keys = useMemo(() => keysFor(tenant.id), [tenant.id]);
   const [retrievalOpen, setRetrievalOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [retrieval, setRetrieval] = useState<RetrievalSettings>(DEFAULT_SETTINGS);
   const [backends, setBackends] = useState<BackendInfo[]>([]);
   const [domains, setDomains] = useState<DomainInfo[]>([]);
@@ -427,6 +430,21 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%' }}>
+        {themeEditorEnabled() && (
+          <ThemeEditor
+            open={editorOpen}
+            onClose={() => setEditorOpen(false)}
+            tenant={tenant}
+            onChange={setTenant}
+            // Re-resolving rather than remembering a snapshot: the tenant on
+            // the server is the thing being edited away from, and it may have
+            // changed since this panel opened.
+            onReset={() => void handleTenantChange(tenant.id)}
+            domains={domains}
+            darkMode={darkMode}
+          />
+        )}
+
         <RetrievalControls
           open={retrievalOpen}
           onClose={() => setRetrievalOpen(false)}
@@ -455,6 +473,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
           }
           onMenuClick={() => setSidebarOpen(true)}
           onRetrievalClick={() => setRetrievalOpen(true)}
+          onEditThemeClick={themeEditorEnabled() ? () => setEditorOpen(true) : undefined}
           darkMode={darkMode}
           onThemeToggle={() => setDarkMode((previous) => !previous)}
           onNewChat={handleNewChat}
