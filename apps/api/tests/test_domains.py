@@ -80,7 +80,13 @@ class TestRenderingIsPerDomain:
         referenced = set(re.findall(r"\bsc:(\w+)\b", turtle))
         # Local names, which is what a prefixed Turtle term is;
         # `properties_of` returns full IRIs and would match nothing.
-        known = set(domain.classes) | set(domain.properties.values())
+        known = (
+            set(domain.classes)
+            | set(domain.properties.values())
+            # Datatype properties are declared per domain too, and a domain that
+            # declares none still renders a document that mentions none.
+            | {name for _, name, _ in domain.attributes}
+        )
 
         assert referenced - known == set()
 

@@ -37,6 +37,16 @@ def properties_of(domain: Domain) -> dict[str, str]:
     return {term: domain.iri(term) for term in domain.properties}
 
 
+def attributes_of(domain: Domain) -> dict[str, str]:
+    """Node property names, mapped to the datatype-property IRI each denotes.
+
+    Separate from `properties_of` because the two are different things in RDF
+    and behave differently in a context: an object property's value is an IRI to
+    follow, a datatype property's value is a literal to read.
+    """
+    return {name: f"{domain.vocab}{name}" for _, name, _ in domain.attributes}
+
+
 def domain_of(predicate: str, domain: Domain) -> str | None:
     """The class a predicate starts from, when the vocabulary declares one."""
     return next((start for start, term, _ in domain.shapes if term == predicate), None)
@@ -70,6 +80,7 @@ def to_turtle(domain: Domain) -> str:
         "@prefix owl:   <http://www.w3.org/2002/07/owl#> .",
         "@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .",
         "@prefix schema: <https://schema.org/> .",
+        "@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .",
         f"@prefix sc:    <{domain.vocab}> .",
         "",
         f"<{domain.vocab.rstrip('#')}> a owl:Ontology ;",
@@ -91,6 +102,16 @@ def to_turtle(domain: Domain) -> str:
             f"rdfs:domain sc:{start} ; rdfs:range sc:{target} ; "
             f'rdfs:label "{_spaced(local)}" .'
         )
+
+    if domain.attributes:
+        lines += ["", "# ── Datatype properties: state a node carries ──"]
+        for start, name, comment in domain.attributes:
+            lines.append(
+                f"sc:{name} a owl:DatatypeProperty ; "
+                f"rdfs:domain sc:{start} ; rdfs:range xsd:string ; "
+                f'rdfs:label "{_spaced(name)}" ; '
+                f'rdfs:comment "{comment}" .'
+            )
 
     unshaped = sorted(set(domain.properties) - {term for _, term, _ in domain.shapes})
     if unshaped:
@@ -130,6 +151,10 @@ def jsonld_context(domain: Domain) -> dict[str, Any]:
     context.update(
         {term: {"@id": iri, "@type": "@id"} for term, iri in properties_of(domain).items()}
     )
+    # Attribute values are literals, not references. Declaring them with the
+    # same `@type: @id` the relationships use would tell a consumer to resolve
+    # "Customs Hold" as an IRI.
+    context.update(attributes_of(domain))
     return context
 
 
@@ -147,11 +172,20 @@ def graph_to_jsonld(graph: GraphData, domain: Domain | None = None) -> dict[str,
             term = link.type if link.type in properties else "relatedTo"
             relationships.setdefault(term, []).append(link.target)
 
+        # Only declared attributes are exported. A property this vocabulary has
+        # not declared would land in the document as an undefined term, which is
+        # the exact defect this module exists to have fixed.
+        declared = attributes_of(domain)
+        carried = {
+            name: str(value) for name, value in (node.properties or {}).items() if name in declared
+        }
+
         entities.append(
             {
                 "@id": node.id,
                 "@type": node.type,
                 "name": node.label,
+                **carried,
                 **relationships,
             }
         )

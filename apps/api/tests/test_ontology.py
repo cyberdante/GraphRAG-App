@@ -80,9 +80,15 @@ class TestDocument:
         doc = graph_to_jsonld(SUPPLY_CHAIN_GRAPH)
         ids = {node.id for node in SUPPLY_CHAIN_GRAPH.nodes}
 
+        attributes = set(ontology.attributes_of(SUPPLY_CHAIN))
+
         for entity in doc["@graph"]:
             for term, value in entity.items():
-                if term in {"@id", "@type", "name"}:
+                # Attribute values are literals — "Customs Hold" is a string to
+                # read, not an id to resolve. Only the relationship terms point
+                # at nodes, and mixing the two is what the context declares
+                # differently for each.
+                if term in {"@id", "@type", "name"} or term in attributes:
                     continue
                 assert set(value) <= ids
 
@@ -184,7 +190,11 @@ class TestTheTurtleDocument:
         # that the vocabulary does not define is the original bug in a new place.
         turtle = ontology.to_turtle(SUPPLY_CHAIN)
         referenced = set(re.findall(r"\bsc:(\w+)\b", turtle))
-        known = set(CLASSES) | {iri.rsplit("#", 1)[-1] for iri in PROPERTIES.values()}
+        known = (
+            set(CLASSES)
+            | {iri.rsplit("#", 1)[-1] for iri in PROPERTIES.values()}
+            | set(ontology.attributes_of(SUPPLY_CHAIN))
+        )
 
         assert referenced - known == set()
 
@@ -219,3 +229,75 @@ class TestExportsNameTheVocabulary:
 
         with TestClient(app) as client:
             assert client.get(SUPPLY_CHAIN.ontology_path).text == ontology.to_turtle(SUPPLY_CHAIN)
+
+
+class TestAttributesAreDeclaredLikeEverythingElse:
+    """State on a node, held to the vocabulary in both directions.
+
+    The attribute pass searches node properties, so a property the vocabulary
+    has not declared is a shape in the data that the document claiming to
+    describe the data does not mention — the original defect wearing different
+    clothes. Checking both ways is what makes it unrepeatable: a new attribute
+    cannot go undeclared, and a declared one cannot quietly rot.
+    """
+
+    def observed(self) -> set[tuple[str, str]]:
+        """(class, property) pairs the sample graph actually carries."""
+        return {
+            (node.type, name)
+            for node in fixtures.SUPPLY_CHAIN_GRAPH.nodes
+            for name in (node.properties or {})
+        }
+
+    def declared(self) -> set[tuple[str, str]]:
+        return {(start, name) for start, name, _ in SUPPLY_CHAIN.attributes}
+
+    def test_every_attribute_in_the_data_is_declared(self):
+        undeclared = self.observed() - self.declared()
+
+        assert undeclared == set(), f"in the data but undeclared: {sorted(undeclared)}"
+
+    def test_every_declared_attribute_appears_in_the_data(self):
+        # The other direction. A declaration nothing carries is a promise the
+        # graph does not keep, and retrieval would plan around it.
+        missing = self.declared() - self.observed()
+
+        assert missing == set(), f"declared but never seen: {sorted(missing)}"
+
+    def test_the_generated_graph_declares_its_attributes_too(self):
+        # The generator is the other source of data, and it is the one that
+        # fills a real store. A property it emits and the vocabulary omits would
+        # be invisible here and present in every seeded deployment.
+        from app import generator
+
+        emitted = {
+            (node.type, name)
+            for node in generator.generate(6, seed=3).nodes
+            for name in node.attributes
+        }
+
+        assert emitted - self.declared() == set(), f"generated but undeclared: {emitted}"
+
+    def test_every_attribute_hangs_off_a_declared_class(self):
+        for start, name, _ in SUPPLY_CHAIN.attributes:
+            assert start in SUPPLY_CHAIN.classes, f"{name} is declared on unknown class {start}"
+
+    def test_an_undeclared_property_never_reaches_the_export(self):
+        # The negative control. A node carrying something the vocabulary does
+        # not define must not put an undefined term into the document.
+        graph = SUPPLY_CHAIN_GRAPH.model_copy(deep=True)
+        graph.nodes[0].properties = {"nonsenseField": "value"}
+
+        document = graph_to_jsonld(graph)
+        entity = next(e for e in document["@graph"] if e["@id"] == graph.nodes[0].id)
+
+        assert "nonsenseField" not in entity
+
+    def test_an_attribute_is_a_literal_and_a_relationship_is_a_reference(self):
+        # The distinction the context exists to make: "Customs Hold" is a string
+        # to read, "warehouse_1" is an id to resolve. Declaring both the same way
+        # would tell a consumer to dereference a status.
+        context = ontology.jsonld_context(SUPPLY_CHAIN)
+
+        assert context["status"] == f"{SUPPLY_CHAIN.vocab}status"
+        assert context["DELIVERED_TO"]["@type"] == "@id"

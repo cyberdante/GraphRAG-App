@@ -67,6 +67,15 @@ class Domain:
     #: Declared rather than observed, so a traversal can be planned for a path
     #: the data has not taken yet.
     shapes: tuple[tuple[str, str, str], ...] = ()
+    #: State a node carries rather than a relationship it has: (class, property,
+    #: what the values mean). The attribute pass searches these, so leaving them
+    #: undeclared would put shapes in the data that the vocabulary — whose whole
+    #: claim is that the data is checked against it — has never heard of.
+    #:
+    #: Values are strings throughout. A typed literal would need a comparison
+    #: this pipeline does not do, and declaring xsd:date on a field nothing ever
+    #: compares as a date would be a claim about rigour rather than rigour.
+    attributes: tuple[tuple[str, str, str], ...] = ()
     #: Questions worth asking of this shape, offered before anyone has typed.
     starters: tuple[str, ...] = ()
     #: Whether this project ships a sample graph for the domain. Only a domain
@@ -107,6 +116,13 @@ SUPPLY_CHAIN = Domain(
         # rather than borrowing someone else's IRI to say it.
         "relatedTo": "relatedTo",
     },
+    attributes=(
+        ("Supplier", "country", "Where the supplier is based."),
+        ("Supplier", "tier", "How far from the buyer this supplier sits."),
+        ("Shipment", "status", "Where the shipment is in its journey."),
+        ("Shipment", "carrier", "Who is moving it."),
+        ("Risk", "severity", "How serious the risk is judged to be."),
+    ),
     shapes=(
         ("Supplier", "HAS_RISK", "Risk"),
         ("Supplier", "SHIPS", "Shipment"),
