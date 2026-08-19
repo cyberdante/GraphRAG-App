@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { fitToView } from '@/utils/fitToView';
 import {
   Box,
   Chip,
@@ -414,16 +415,32 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
     }
   };
 
+  /**
+   * Frames the whole graph, which is what the control always claimed to do.
+   *
+   * The extent comes from the simulation's own node positions, so it reflects
+   * where the layout has settled rather than where it started. The arithmetic
+   * lives in `fitToView` because jsdom does no layout: a test here could assert
+   * that a transform was applied but not that it frames anything.
+   */
   const handleCenter = () => {
-    if (svgRef.current && zoomBehaviorRef.current) {
-      d3.select(svgRef.current)
-        .transition()
-        .duration(750)
-        .call(
-          zoomBehaviorRef.current.transform as any,
-          d3.zoomIdentity.translate(dimensions.width / 2, dimensions.height / 2).scale(1)
-        );
-    }
+    const svg = svgRef.current;
+    const zoom = zoomBehaviorRef.current;
+    if (!svg || !zoom) return;
+
+    const fit = fitToView(simulationRef.current?.nodes() ?? [], dimensions);
+    if (!fit) return;
+
+    d3.select(svg)
+      .transition()
+      .duration(750)
+      .call(
+        zoom.transform as any,
+        d3.zoomIdentity
+          .translate(dimensions.width / 2, dimensions.height / 2)
+          .scale(fit.scale)
+          .translate(-fit.centerX, -fit.centerY),
+      );
   };
 
   return (
@@ -480,7 +497,7 @@ export const D3GraphVisualization: React.FC<D3GraphVisualizationProps> = ({ data
                 </IconButton>
               </span>
             </Tooltip>
-            <Tooltip title="Center View" describeChild>
+            <Tooltip title="Fit to view" describeChild>
               <span>
                 <IconButton onClick={handleCenter} aria-label="Fit to view">
                   <CenterFocusStrongIcon fontSize="small" />
