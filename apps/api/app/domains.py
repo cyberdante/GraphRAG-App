@@ -27,6 +27,26 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class QueryPreset:
+    """A query worth starting from.
+
+    Orientation rather than shortcut. The first one a newcomer runs should
+    answer "what is actually in this store", in words rather than identifiers —
+    a console that opens on an empty box assumes you already know the schema,
+    which is the thing you came to find out.
+
+    Tagged with its language because a preset is not portable: the same question
+    is different text in Cypher and in SPARQL, and offering the wrong one is
+    worse than offering none.
+    """
+
+    label: str
+    description: str
+    language: str
+    query: str
+
+
+@dataclass(frozen=True)
 class Domain:
     """One subject a deployment can hold a graph about."""
 
@@ -52,6 +72,8 @@ class Domain:
     #: Whether this project ships a sample graph for the domain. Only a domain
     #: with data can have its declarations checked against any, and pretending
     #: otherwise would make the agreement tests vacuous for the others.
+    #: Queries worth starting from, per language.
+    presets: tuple[QueryPreset, ...] = ()
     has_sample_graph: bool = False
 
     def iri(self, term: str) -> str:
@@ -95,6 +117,39 @@ SUPPLY_CHAIN = Domain(
         ("Risk", "INDICATED_BY", "RiskSignal"),
         ("Location", "HAS_SIGNAL", "RiskSignal"),
     ),
+    presets=(
+        QueryPreset(
+            label="What is in the store",
+            description=(
+                "Every class and how many of each. Start here — it answers what this "
+                "graph holds in words rather than identifiers."
+            ),
+            language="cypher",
+            query="MATCH (n)\nRETURN labels(n)[0] AS type, count(*) AS count\nORDER BY count DESC",
+        ),
+        QueryPreset(
+            label="How things connect",
+            description="Every shape the data actually takes, which is what retrieval plans from.",
+            language="cypher",
+            query=(
+                "MATCH (a)-[r]->(b)\n"
+                "RETURN labels(a)[0] AS from, type(r) AS relationship, labels(b)[0] AS to,\n"
+                "       count(*) AS count\n"
+                "ORDER BY count DESC"
+            ),
+        ),
+        QueryPreset(
+            label="Suppliers and their risks",
+            description="The question the demo asks, as the query behind it.",
+            language="cypher",
+            query=(
+                "MATCH (s:Supplier)-[:HAS_RISK]->(r:Risk)\n"
+                "RETURN s.label AS supplier, r.label AS risk\n"
+                "ORDER BY supplier\n"
+                "LIMIT 25"
+            ),
+        ),
+    ),
     starters=(
         "Which suppliers are at risk?",
         "Show shipment status",
@@ -134,6 +189,17 @@ CLINICAL_TRIALS = Domain(
         ("Participant", "WITHDREW_FROM", "Trial"),
         ("AdverseEvent", "OCCURRED_AT", "Site"),
         ("Trial", "SUPERSEDES", "Trial"),
+    ),
+    presets=(
+        QueryPreset(
+            label="What is in the store",
+            description=(
+                "Every class and how many of each. Start here — it answers what this "
+                "graph holds in words rather than identifiers."
+            ),
+            language="cypher",
+            query="MATCH (n)\nRETURN labels(n)[0] AS type, count(*) AS count\nORDER BY count DESC",
+        ),
     ),
     starters=(
         "Which sites reported the most adverse events?",

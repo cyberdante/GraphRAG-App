@@ -79,3 +79,38 @@ def query_body() -> dict:
 def anyio_backend() -> str:
     """Run async tests on asyncio; trio is not a dependency here."""
     return "asyncio"
+
+
+@pytest.fixture
+async def cypher_store():
+    """A store pointed at a real database, or a skip that says how to get one.
+
+    Built directly rather than through the app: `no_ambient_credentials` strips
+    the store variables so no test reaches a database by accident, which is
+    right for everything except the handful of tests whose whole subject is what
+    a real database does.
+    """
+    import os
+    import socket
+    from contextlib import closing
+
+    uri = os.environ.get("RAGSTONE_TEST_NEO4J_URI", "bolt://localhost:7687")
+    host, _, port = uri.rsplit("/", 1)[-1].partition(":")
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as probe:
+        probe.settimeout(0.35)
+        if probe.connect_ex((host or "localhost", int(port or 7687))) != 0:
+            pytest.skip(f"No Bolt endpoint at {uri}. Run: docker compose up -d neo4j")
+
+    from app.retrieval.cypher_store import CypherGraphStore, build_driver
+
+    store = CypherGraphStore(
+        build_driver(
+            uri,
+            os.environ.get("RAGSTONE_TEST_NEO4J_USER", "neo4j"),
+            os.environ.get("RAGSTONE_TEST_NEO4J_PASSWORD", "ragstone-dev"),
+        )
+    )
+    try:
+        yield store
+    finally:
+        await store.close()

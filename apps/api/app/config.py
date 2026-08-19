@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     # on a client's behalf, so the cap is a rate limit as much as a budget.
     max_urls_per_query: int = 3
 
+    #: Rows one typed query may return. A console is exactly where somebody
+    #: forgets the LIMIT, and the answer to that is a cap rather than a browser
+    #: holding a million rows.
+    max_query_rows: int = 200
+
     # Pacing for the fixture stream, in seconds. Set to 0 in tests.
     fixture_token_delay: float = 0.03
 

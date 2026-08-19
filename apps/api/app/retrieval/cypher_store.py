@@ -20,7 +20,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from . import passes, scoring
+from . import passes, query_guard, scoring
 from .models import Candidate, RetrievalRequest
 from .schema import MAX_SHAPES, GraphSchema, SchemaEdge
 
@@ -171,6 +171,36 @@ class CypherGraphStore:
             )
 
         return GraphSchema(edges=edges, truncated=truncated)
+
+    async def run_readonly(
+        self, query: str, *, limit: int = 200, timeout: float = 10.0
+    ) -> tuple[list[str], list[dict[str, Any]]]:
+        """Runs a query somebody typed, and cannot let it change anything.
+
+        `default_access_mode=READ` is the guarantee: the server refuses a write
+        whatever the phrasing, including phrasings `query_guard` has never heard
+        of. The guard runs first only so a person who typed a write is told they
+        typed a write, rather than handed an access-mode exception.
+
+        The row cap is applied here rather than trusted to the query, because a
+        console is exactly where somebody forgets the LIMIT.
+        """
+        query_guard.check(query)
+
+        async with self._driver.session(
+            database=self._database, default_access_mode="READ"
+        ) as session:
+            result = await session.run(query, timeout=timeout)
+
+            rows: list[dict[str, Any]] = []
+            async for record in result:
+                rows.append(_readable(record.data()))
+                if len(rows) >= limit:
+                    break
+
+            columns = list(await result.keys()) if not rows else list(rows[0])
+
+        return columns, rows
 
     async def _run(self, session, cypher: str, parameters: dict[str, Any]) -> list[dict[str, Any]]:
         result = await session.run(cypher, parameters)
@@ -330,3 +360,29 @@ _BY_ID = f"""
       AND (subject.id IN $ids OR object.id IN $ids)
     {_PROJECTION}
 """
+
+
+def _readable(row: dict[str, Any]) -> dict[str, Any]:
+    """Values a JSON response can carry.
+
+    A driver row may hold nodes, relationships, paths and temporals, none of
+    which serialise. Rendering them as their properties keeps the console
+    useful — a node is worth seeing — while never claiming a shape the wire
+    cannot carry.
+    """
+
+    def render(value: Any) -> Any:
+        to_native = getattr(value, "to_native", None)
+        if callable(to_native):
+            return str(to_native())
+        if hasattr(value, "items") and not isinstance(value, dict):
+            return dict(value.items())
+        if isinstance(value, dict):
+            return {key: render(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [render(item) for item in value]
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        return str(value)
+
+    return {key: render(value) for key, value in row.items()}

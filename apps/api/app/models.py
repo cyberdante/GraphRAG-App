@@ -76,6 +76,36 @@ class BackendInfo(BaseModel):
     default: bool
 
 
+class QueryPresetInfo(BaseModel):
+    """A query worth starting from, tagged with the language it is written in."""
+
+    label: str
+    description: str
+    language: str
+    query: str
+
+
+class GraphQueryRequest(BaseModel):
+    """A query somebody typed.
+
+    Names a backend the deployment offers, never an endpoint — the same rule the
+    retrieval request follows, and for the same reason.
+    """
+
+    query: str
+    backend: str | None = None
+
+
+class GraphQueryResult(BaseModel):
+    columns: list[str]
+    rows: list[dict[str, object]]
+    #: Milliseconds the store took, so a slow query reads as slow rather than broken.
+    elapsed_ms: int
+    #: True when the row cap cut the result. Silence here would let a partial
+    #: answer read as a complete one.
+    truncated: bool
+
+
 class DomainInfo(BaseModel):
     """One subject this deployment can hold a graph about."""
 
@@ -87,6 +117,8 @@ class DomainInfo(BaseModel):
     classes: list[str]
     #: Questions worth asking of this shape, before anyone has typed.
     starters: list[str]
+    #: Queries worth starting from.
+    presets: list[QueryPresetInfo] = []
     #: Where the vocabulary is served.
     ontology: str
     default: bool

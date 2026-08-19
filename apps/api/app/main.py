@@ -1,4 +1,5 @@
 import logging
+import time
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +10,16 @@ from .attachments import AttachmentRejected, AttachmentStore
 from .config import Settings, get_settings
 from .llm.generator import AnswerGenerator
 from .llm.registry import build_generator
-from .models import AttachmentInfo, BackendInfo, DomainInfo, QueryRequest
+from .models import (
+    AttachmentInfo,
+    BackendInfo,
+    DomainInfo,
+    GraphQueryRequest,
+    GraphQueryResult,
+    QueryPresetInfo,
+    QueryRequest,
+)
+from .retrieval.query_guard import QueryRejected
 from .retrieval.registry import BackendRegistry, build_registry
 from .retrieval.store import UnknownBackendError
 from .streaming import stream_answer
@@ -102,11 +112,78 @@ async def list_domains(settings: Settings = Depends(get_settings)) -> list[Domai
             version=domain.version,
             classes=list(domain.classes),
             starters=list(domain.starters),
+            presets=[
+                QueryPresetInfo(
+                    label=preset.label,
+                    description=preset.description,
+                    language=preset.language,
+                    query=preset.query,
+                )
+                for preset in domain.presets
+            ],
             ontology=domain.ontology_path,
             default=domain.id == settings.default_domain,
         )
         for domain in domains.DOMAINS.values()
     ]
+
+
+@app.post("/api/graph/query", response_model=GraphQueryResult)
+async def graph_query(
+    request: GraphQueryRequest,
+    settings: Settings = Depends(get_settings),
+    registry: BackendRegistry = Depends(get_registry),
+) -> GraphQueryResult:
+    """Run a query somebody typed, against a store that will not let it write.
+
+    The point of this endpoint is evidence. The trace reports how many
+    candidates were considered and how long each phase took, and a reader is
+    entitled to ask what was actually *asked* — a graph nobody can query is a
+    claim rather than a component.
+
+    Read-only twice over: the session is opened in READ mode, which is what
+    stops a write whatever its phrasing, and the guard runs first so a person
+    who typed a write is told so rather than handed an access-mode error.
+    """
+    try:
+        store = registry.get(request.backend)
+    except UnknownBackendError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    runner = getattr(store, "run_readonly", None)
+    if runner is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"The {store.name} backend has no query language: it serves a bundled "
+                "graph rather than a database. Choose a backend that does."
+            ),
+        )
+
+    started = time.perf_counter()
+    try:
+        columns, rows = await runner(query=request.query, limit=settings.max_query_rows)
+    except QueryRejected as rejected:
+        raise HTTPException(status_code=400, detail=rejected.reason) from rejected
+    except Exception as error:  # noqa: BLE001 - the store's own complaint is the useful part
+        logger.info("Query failed: %s", error)
+        raise HTTPException(status_code=400, detail=_readable_failure(error)) from error
+
+    elapsed = int((time.perf_counter() - started) * 1000)
+    return GraphQueryResult(
+        columns=columns,
+        rows=rows,
+        elapsed_ms=elapsed,
+        truncated=len(rows) >= settings.max_query_rows,
+    )
+
+
+def _readable_failure(error: Exception) -> str:
+    """The database's complaint, without the driver's framing around it."""
+    message = str(error)
+    if "{message: " in message:
+        message = message.split("{message: ", 1)[1].rstrip("}")
+    return message.strip() or "The query could not be run."
 
 
 @app.get("/ontology/{domain_id}.ttl", response_class=PlainTextResponse)
