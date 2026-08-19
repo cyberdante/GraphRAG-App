@@ -74,3 +74,53 @@ describe('what the policy actually says', () => {
     for (const directive of directives) expect(directive.trimEnd()).toMatch(/always;$/);
   });
 });
+
+describe('the endpoints that cost something are capped', () => {
+  /**
+   * Three endpoints spend something the caller does not pay for: a question
+   * runs retrieval and then a model, an upload takes bytes, and a URL
+   * attachment makes this service fetch on somebody else's behalf. Each is
+   * capped separately because the sensible rate for one is wrong for another.
+   */
+  it.each([
+    ['/api/query', 'asking'],
+    ['/api/attachments', 'uploading'],
+    ['/api/graph/query', 'querying'],
+  ])('%s is limited by the %s zone', (path, zone) => {
+    const block = nginx.match(
+      new RegExp(`location = ${path.replace('/', '\\/')}\\s*\\{([\\s\\S]*?)\\n    \\}`),
+    );
+
+    expect(block, `no exact-match location for ${path}`).not.toBeNull();
+    expect(block![1]).toContain(`limit_req zone=${zone}`);
+  });
+
+  it('declares every zone it uses', () => {
+    const used = [...nginx.matchAll(/limit_req zone=(\w+)/g)].map((match) => match[1]);
+    const declared = [...nginx.matchAll(/limit_req_zone[^;]*zone=(\w+):/g)].map((m) => m[1]);
+
+    expect(used.length).toBeGreaterThan(0);
+    for (const zone of used) expect(declared).toContain(zone);
+  });
+
+  it('answers a rate limit with 429 rather than 503', () => {
+    // The caller asked too often; the service is not unavailable.
+    expect(nginx).toContain('limit_req_status 429');
+  });
+
+  it('keeps the answer endpoint streaming', () => {
+    // /api/query moved into its own location to be limited separately, and a
+    // location that forgets proxy_buffering off delivers the whole answer at
+    // the end — which looks like a hang rather than a regression.
+    const block = nginx.match(/location = \/api\/query\s*\{([\s\S]*?)\n    \}/);
+
+    expect(block![1]).toContain('proxy_buffering off');
+    expect(block![1]).toContain('proxy_read_timeout 300s');
+  });
+
+  it('bounds an upload body before the service reads it', () => {
+    const block = nginx.match(/location = \/api\/attachments\s*\{([\s\S]*?)\n    \}/);
+
+    expect(block![1]).toMatch(/client_max_body_size \d+m/);
+  });
+});
