@@ -120,3 +120,38 @@ describe('GraphQueryConsole', () => {
     );
   });
 });
+
+describe('when the deployment has nothing to query', () => {
+  const ONLY_FIXTURES: BackendInfo[] = [
+    { name: 'fixtures', description: 'Bundled sample.', default: true, queryable: false },
+  ];
+
+  function renderWithout() {
+    render(
+      <ThemeProvider theme={THEME}>
+        <GraphQueryConsole
+          open
+          onClose={vi.fn()}
+          backends={ONLY_FIXTURES}
+          domain={DOMAIN}
+          backend={undefined}
+        />
+      </ThemeProvider>,
+    );
+  }
+
+  it('says so before anything is typed', () => {
+    // Reported from a screenshot: a service with no database configured offers
+    // only the fixture store, so the picker sat empty and the reason arrived
+    // only after pressing Run.
+    renderWithout();
+
+    expect(screen.getByText(/no backend that can be queried/)).toBeInTheDocument();
+  });
+
+  it('does not offer to run a query that cannot go anywhere', () => {
+    renderWithout();
+
+    expect(screen.getByRole('button', { name: /Run query/ })).toBeDisabled();
+  });
+});

@@ -62,13 +62,19 @@ export const GraphQueryConsole: React.FC<GraphQueryConsoleProps> = ({
   // not offer supply-chain questions.
   const presets = domain?.presets ?? [];
 
+  // A deployment can have nothing to query: the fixture store serves a bundled
+  // graph, and a service with no database configured offers only that. Letting
+  // someone type a query and press Run to find that out is a worse answer than
+  // saying so before they start.
+  const queryable = backends.filter((entry) => entry.queryable);
+  const nothingToQuery = backends.length > 0 && queryable.length === 0;
+
   // Opens on a backend that can actually be queried. The console defaulting to
   // the deployment default is right only when that default is a database; the
   // fixture store serves a bundled graph, so pointing at it means the first
   // thing a reader sees is a refusal.
   useEffect(() => {
     if (!open) return;
-    const queryable = backends.filter((entry) => entry.queryable);
     const current = queryable.find((entry) => entry.name === backend);
     setChosenBackend(current?.name ?? queryable[0]?.name ?? backend);
   }, [open, backend, backends]);
@@ -125,6 +131,13 @@ export const GraphQueryConsole: React.FC<GraphQueryConsoleProps> = ({
       </Box>
 
       <Box sx={{ px: 2, pt: 2, pb: 3, overflowY: 'auto', flexGrow: 1 }} data-testid="query-console-scroll">
+        {nothingToQuery && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            This deployment has no backend that can be queried. The fixture store serves a bundled
+            graph rather than a database — configure a store and it will appear here.
+          </Alert>
+        )}
+
         <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
           <FormControl size="small" sx={{ minWidth: 160 }} disabled={backends.length === 0}>
             <InputLabel id="query-backend">Backend</InputLabel>
@@ -184,7 +197,7 @@ export const GraphQueryConsole: React.FC<GraphQueryConsoleProps> = ({
         <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
           <Button
             onClick={() => void run()}
-            disabled={running || !query.trim()}
+            disabled={running || nothingToQuery || !query.trim()}
             startIcon={running ? <CircularProgress size={16} /> : <RunIcon />}
           >
             {running ? 'Running' : 'Run query'}
