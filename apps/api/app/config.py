@@ -107,6 +107,18 @@ class Settings(BaseSettings):
     #: holding a million rows.
     max_query_rows: int = 200
 
+    #: How many parameter slots a replayed query may bind. Values are bound by
+    #: the driver rather than interpolated, so this is a size bound and not an
+    #: injection one — a console request should not be able to hand the driver
+    #: an arbitrarily large map.
+    max_query_parameters: int = 32
+
+    #: Whether the trace reports the queries retrieval issued. On, because
+    #: showing the query is the point of the trace. A deployment that treats its
+    #: schema as non-public should turn this off: the text names labels,
+    #: relationship types and properties.
+    expose_issued_queries: bool = True
+
     # Pacing for the fixture stream, in seconds. Set to 0 in tests.
     fixture_token_delay: float = 0.03
 

@@ -21,7 +21,7 @@ import {
   Typography,
 } from '@mui/material';
 import { Close as CloseIcon, PlayArrow as RunIcon } from '@mui/icons-material';
-import type { BackendInfo, DomainInfo, GraphQueryResult } from '@ragstone/shared';
+import type { BackendInfo, DomainInfo, GraphQueryResult, IssuedQuery } from '@ragstone/shared';
 import { runGraphQuery } from '@/api/graphQuery';
 
 interface GraphQueryConsoleProps {
@@ -31,6 +31,12 @@ interface GraphQueryConsoleProps {
   domain: DomainInfo | null;
   /** The backend the answers are coming from, so the console asks the same store. */
   backend: string | undefined;
+  /**
+   * A query the pipeline issued, sent here from the trace panel. Loading it
+   * rather than a preset is the difference between "here is the kind of thing
+   * we ask" and "here is what we asked for the answer you just read".
+   */
+  loaded?: IssuedQuery | null;
 }
 
 /**
@@ -51,9 +57,14 @@ export const GraphQueryConsole: React.FC<GraphQueryConsoleProps> = ({
   backends,
   domain,
   backend,
+  loaded,
 }) => {
   const [chosenBackend, setChosenBackend] = useState<string | undefined>(backend);
   const [query, setQuery] = useState('');
+  // Held beside the text rather than folded into it. The pipeline's queries
+  // bind `$keywords` and `$limit`, and pasting the values in would run a
+  // different query from the one the trace reported.
+  const [parameters, setParameters] = useState<Record<string, unknown> | undefined>();
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<GraphQueryResult | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -79,16 +90,28 @@ export const GraphQueryConsole: React.FC<GraphQueryConsoleProps> = ({
     setChosenBackend(current?.name ?? queryable[0]?.name ?? backend);
   }, [open, backend, backends]);
 
+  // A query handed over from the trace wins over the preset: somebody who
+  // clicked "open this query" has asked for that one specifically. Keyed on the
+  // query itself so re-opening the console does not overwrite an edit in
+  // progress.
+  useEffect(() => {
+    if (!open || !loaded) return;
+    setQuery(loaded.text);
+    setParameters(loaded.parameters);
+    setResult(null);
+    setRefusal(null);
+  }, [open, loaded]);
+
   // Opening on an empty box assumes the reader already knows the schema, which
   // is the thing they came to find out.
   useEffect(() => {
-    if (open && !query && presets.length > 0) setQuery(presets[0]!.query);
-  }, [open, query, presets]);
+    if (open && !query && !loaded && presets.length > 0) setQuery(presets[0]!.query);
+  }, [open, query, loaded, presets]);
 
   const run = async () => {
     setRunning(true);
     setRefusal(null);
-    const outcome = await runGraphQuery(query, chosenBackend);
+    const outcome = await runGraphQuery(query, chosenBackend, parameters);
     setRunning(false);
 
     if (outcome.status === 'ok' && outcome.result) {
@@ -165,7 +188,12 @@ export const GraphQueryConsole: React.FC<GraphQueryConsoleProps> = ({
               value=""
               onChange={(event) => {
                 const preset = presets.find((entry) => entry.label === event.target.value);
-                if (preset) setQuery(preset.query);
+                if (preset) {
+                  setQuery(preset.query);
+                  // A preset binds nothing. Carrying the pipeline's parameters
+                  // into it would send values the query has no slots for.
+                  setParameters(undefined);
+                }
               }}
             >
               {presets.map((preset) => (
@@ -181,6 +209,28 @@ export const GraphQueryConsole: React.FC<GraphQueryConsoleProps> = ({
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
             {presets[0].description}
           </Typography>
+        )}
+
+        {parameters && Object.keys(parameters).length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              Bound to this query, as the pipeline bound them. Sent as values, not pasted into the
+              text — so this runs what ran.
+            </Typography>
+            <Box
+              component="pre"
+              sx={{
+                m: 0,
+                p: 1,
+                borderRadius: 1,
+                bgcolor: 'action.hover',
+                fontSize: '0.75rem',
+                overflowX: 'auto',
+              }}
+            >
+              {JSON.stringify(parameters, null, 2)}
+            </Box>
+          </Box>
         )}
 
         <TextField

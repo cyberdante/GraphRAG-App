@@ -145,11 +145,26 @@ async def graph_query(
     Read-only twice over: the session is opened in READ mode, which is what
     stops a write whatever its phrasing, and the guard runs first so a person
     who typed a write is told so rather than handed an access-mode error.
+
+    Parameters are accepted so a query the pipeline issued can be run again as
+    it ran. They are values in the driver's parameter slots, never text spliced
+    into the query, so they widen no injection surface — only a size one, which
+    is what the cap below is for.
     """
     try:
         store = registry.get(request.backend)
     except UnknownBackendError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+    parameters = request.parameters or {}
+    if len(parameters) > settings.max_query_parameters:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"A query may bind at most {settings.max_query_parameters} parameters; "
+                f"this one binds {len(parameters)}."
+            ),
+        )
 
     runner = getattr(store, "run_readonly", None)
     if runner is None:
@@ -163,7 +178,11 @@ async def graph_query(
 
     started = time.perf_counter()
     try:
-        columns, rows = await runner(query=request.query, limit=settings.max_query_rows)
+        columns, rows = await runner(
+            query=request.query,
+            parameters=parameters,
+            limit=settings.max_query_rows,
+        )
     except QueryRejected as rejected:
         raise HTTPException(status_code=400, detail=rejected.reason) from rejected
     except Exception as error:  # noqa: BLE001 - the store's own complaint is the useful part

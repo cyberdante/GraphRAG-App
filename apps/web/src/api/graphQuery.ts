@@ -17,13 +17,24 @@ export interface QueryOutcome {
 export async function runGraphQuery(
   query: string,
   backend: string | undefined,
+  /**
+   * Values for the query's parameter slots. Present so a query the pipeline
+   * issued can be run again as it ran: those queries carry `$keywords` and
+   * `$limit`, and rewriting them to be self-contained would replay something
+   * other than what happened. The service binds them through the driver.
+   */
+  parameters?: Record<string, unknown>,
   baseUrl = '',
 ): Promise<QueryOutcome> {
   try {
     const response = await fetch(`${baseUrl}/api/graph/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, ...(backend ? { backend } : {}) }),
+      body: JSON.stringify({
+        query,
+        ...(backend ? { backend } : {}),
+        ...(parameters && Object.keys(parameters).length ? { parameters } : {}),
+      }),
     });
 
     const body: unknown = await response.json().catch(() => null);

@@ -11,6 +11,7 @@ export type {
   GraphEdge,
   GraphNode,
   GraphRagClient,
+  IssuedQuery,
   Message,
   MessageStatus,
   QueryHistoryItem,

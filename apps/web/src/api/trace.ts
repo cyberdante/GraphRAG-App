@@ -11,7 +11,7 @@
  * reads as the app having hung.
  */
 
-import type { DonePayload, RetrievalPhase, UsagePayload } from '@/types';
+import type { DonePayload, IssuedQuery, RetrievalPhase, UsagePayload } from '@/types';
 
 export interface TracePhase {
   phase: RetrievalPhase;
@@ -34,6 +34,8 @@ export interface QueryTrace {
   /** Things the pipeline declined to do, and why. */
   notes?: string[];
   candidates?: number;
+  /** The queries retrieval issued, so the panel can show what was asked. */
+  queries?: IssuedQuery[];
 }
 
 /**
@@ -48,7 +50,10 @@ export class TraceRecorder {
   private readonly startedAt: number;
   private readonly phases: TracePhase[] = [];
   private firstTokenAt?: number;
-  private summary: Pick<QueryTrace, 'usage' | 'model' | 'backend' | 'candidates' | 'notes'> = {};
+  private summary: Pick<
+    QueryTrace,
+    'usage' | 'model' | 'backend' | 'candidates' | 'notes' | 'queries'
+  > = {};
 
   constructor(private readonly now: () => number = () => performance.now()) {
     this.startedAt = now();
@@ -74,6 +79,7 @@ export class TraceRecorder {
       ...(done.backend ? { backend: done.backend } : {}),
       ...(done.notes?.length ? { notes: done.notes } : {}),
       ...(done.candidates !== undefined ? { candidates: done.candidates } : {}),
+      ...(done.queries?.length ? { queries: done.queries } : {}),
     };
   }
 

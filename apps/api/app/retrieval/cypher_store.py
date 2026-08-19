@@ -17,10 +17,12 @@ Connection details come from settings, never from a request — see the note in
 
 import logging
 import re
+import time
 from datetime import datetime
 from typing import Any
 
 from . import passes, query_guard, scoring
+from .issued import QueryRecorder
 from .models import Candidate, RetrievalRequest
 from .schema import MAX_SHAPES, GraphSchema, SchemaEdge
 
@@ -43,7 +45,9 @@ class CypherGraphStore:
         self._database = database
         self._schema: GraphSchema | None = None
 
-    async def retrieve(self, request: RetrievalRequest) -> list[Candidate]:
+    async def retrieve(
+        self, request: RetrievalRequest, recorder: QueryRecorder | None = None
+    ) -> list[Candidate]:
         keywords = passes.keywords_for(request)
         budgets = passes.plan(request.max_candidates)
         types = list(request.entity_types)
@@ -52,7 +56,11 @@ class CypherGraphStore:
             if not keywords:
                 # Nothing to search on, so there is no relevance to select by.
                 rows = await self._run(
-                    session, _UNFILTERED, {"types": types, "limit": budgets.total}
+                    session,
+                    _UNFILTERED,
+                    {"types": types, "limit": budgets.total},
+                    recorder=recorder,
+                    pass_name="unfiltered",
                 )
                 return [self._statement(record) for record in rows]
 
@@ -60,7 +68,11 @@ class CypherGraphStore:
             # would spend the whole budget before relevance was consulted,
             # which is the defect this replaces.
             entity_rows = await self._run(
-                session, _BY_ENTITY, {"types": types, "keywords": keywords, "limit": budgets.entity}
+                session,
+                _BY_ENTITY,
+                {"types": types, "keywords": keywords, "limit": budgets.entity},
+                recorder=recorder,
+                pass_name="entity",
             )
 
             # Ids the asker named outright. They are not searched for, they are
@@ -72,11 +84,15 @@ class CypherGraphStore:
                     session,
                     _BY_ID,
                     {"types": types, "ids": list(request.entity_ids), "limit": budgets.entity},
+                    recorder=recorder,
+                    pass_name="named ids",
                 )
             vocabulary_rows = await self._run(
                 session,
                 _BY_VOCABULARY,
                 {"types": types, "keywords": keywords, "limit": budgets.vocabulary},
+                recorder=recorder,
+                pass_name="vocabulary",
             )
 
             anchors = sorted(
@@ -89,7 +105,7 @@ class CypherGraphStore:
             # every edge from an anchor and spends its budget on whichever the
             # database returns first — a question about risk expands a supplier
             # into its shipments, because there are more of them.
-            graph_schema = await self._cached_schema(session)
+            graph_schema = await self._cached_schema(session, recorder=recorder)
             predicates = passes.relevant_predicates(graph_schema, keywords)
 
             expansion_rows = (
@@ -102,6 +118,8 @@ class CypherGraphStore:
                         "predicates": predicates,
                         "limit": budgets.expansion,
                     },
+                    recorder=recorder,
+                    pass_name="expansion",
                 )
                 if anchors
                 else []
@@ -116,7 +134,7 @@ class CypherGraphStore:
             budgets.total,
         )
 
-    async def _cached_schema(self, session) -> GraphSchema:
+    async def _cached_schema(self, session, recorder: QueryRecorder | None = None) -> GraphSchema:
         """The schema, read once and kept.
 
         Introspection is a distinct-triple scan. Running it per query would put
@@ -130,7 +148,10 @@ class CypherGraphStore:
         is always read fresh.
         """
         if self._schema is None:
-            self._schema = await self._read_schema(session)
+            # Recorded only when it actually runs. A cached schema issued no
+            # query this request, and listing one would be reporting work
+            # that did not happen.
+            self._schema = await self._read_schema(session, recorder=recorder)
         return self._schema
 
     async def schema(self) -> GraphSchema:
@@ -148,8 +169,16 @@ class CypherGraphStore:
         async with self._driver.session(database=self._database) as session:
             return await self._read_schema(session)
 
-    async def _read_schema(self, session) -> GraphSchema:
-        rows = await self._run(session, _SCHEMA_SHAPES, {"limit": MAX_SHAPES + 1})
+    async def _read_schema(
+        self, session, recorder: QueryRecorder | None = None
+    ) -> GraphSchema:
+        rows = await self._run(
+            session,
+            _SCHEMA_SHAPES,
+            {"limit": MAX_SHAPES + 1},
+            recorder=recorder,
+            pass_name="schema",
+        )
 
         truncated = len(rows) > MAX_SHAPES
         edges = [
@@ -173,7 +202,12 @@ class CypherGraphStore:
         return GraphSchema(edges=edges, truncated=truncated)
 
     async def run_readonly(
-        self, query: str, *, limit: int = 200, timeout: float = 10.0
+        self,
+        query: str,
+        *,
+        parameters: dict[str, Any] | None = None,
+        limit: int = 200,
+        timeout: float = 10.0,
     ) -> tuple[list[str], list[dict[str, Any]]]:
         """Runs a query somebody typed, and cannot let it change anything.
 
@@ -184,13 +218,22 @@ class CypherGraphStore:
 
         The row cap is applied here rather than trusted to the query, because a
         console is exactly where somebody forgets the LIMIT.
+
+        `parameters` exists so the queries the pipeline issued can be replayed
+        as they ran. Those queries carry `$keywords`, `$types` and `$limit`, and
+        the alternative — pasting the values into the text to make it
+        self-contained — would both misreport what ran and hand a console user a
+        worked example of building a query by concatenation. They go into the
+        driver's parameter slots, which is the same reason relationship types
+        are the only thing in this module ever interpolated, and only after
+        `SAFE_IDENTIFIER`.
         """
         query_guard.check(query)
 
         async with self._driver.session(
             database=self._database, default_access_mode="READ"
         ) as session:
-            result = await session.run(query, timeout=timeout)
+            result = await session.run(query, parameters or {}, timeout=timeout)
 
             rows: list[dict[str, Any]] = []
             async for record in result:
@@ -198,13 +241,42 @@ class CypherGraphStore:
                 if len(rows) >= limit:
                     break
 
-            columns = list(await result.keys()) if not rows else list(rows[0])
+            # `keys()` is synchronous on this driver, and awaiting it raises
+            # rather than returning the columns. The path only runs when a query
+            # matched nothing, which is why it survived: every console query
+            # anyone had tried returned rows. A query with no results is the
+            # ordinary case the console most needs to report clearly.
+            columns = list(rows[0]) if rows else list(result.keys())
 
         return columns, rows
 
-    async def _run(self, session, cypher: str, parameters: dict[str, Any]) -> list[dict[str, Any]]:
+    async def _run(
+        self,
+        session,
+        cypher: str,
+        parameters: dict[str, Any],
+        recorder: QueryRecorder | None = None,
+        pass_name: str = "query",
+    ) -> list[dict[str, Any]]:
+        """Runs one pass, and records it when somebody is listening.
+
+        Timed and recorded here rather than at each call site, so a pass added
+        later cannot be the one that quietly goes unreported.
+        """
+        started = time.perf_counter()
         result = await session.run(cypher, parameters)
-        return [record.data() async for record in result]
+        rows = [record.data() async for record in result]
+
+        if recorder is not None:
+            recorder.record(
+                pass_name=pass_name,
+                language="cypher",
+                text=cypher,
+                parameters=parameters,
+                rows=len(rows),
+                elapsed_ms=int((time.perf_counter() - started) * 1000),
+            )
+        return rows
 
     def _scored(self, rows: list[dict[str, Any]], keywords: list[str]) -> list[Candidate]:
         candidates = []

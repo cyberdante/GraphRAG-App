@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Box,
+  Button,
   Chip,
   Collapse,
   Divider,
@@ -10,10 +11,17 @@ import {
   Typography,
 } from '@mui/material';
 import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
+import type { IssuedQuery } from '@ragstone/shared';
 import { formatDuration, formatTokens, type QueryTrace } from '@/api/trace';
 
 interface TracePanelProps {
   trace: QueryTrace;
+  /**
+   * Hands a query the pipeline issued to the console. Absent when there is no
+   * console to hand it to, which is why the buttons are conditional rather than
+   * always rendered and inert.
+   */
+  onOpenQuery?: (query: IssuedQuery) => void;
 }
 
 /**
@@ -27,7 +35,7 @@ interface TracePanelProps {
  * Collapsed by default. Someone reading an answer does not want telemetry;
  * someone doubting one wants all of it.
  */
-export const TracePanel: React.FC<TracePanelProps> = ({ trace }) => {
+export const TracePanel: React.FC<TracePanelProps> = ({ trace, onOpenQuery }) => {
   const [open, setOpen] = useState(false);
   const total = trace.totalMs ?? 0;
 
@@ -122,6 +130,67 @@ export const TracePanel: React.FC<TracePanelProps> = ({ trace }) => {
               </Box>
             );
           })}
+
+          {trace.queries?.length ? (
+            <Box sx={{ mb: 1.5 }}>
+              {/* The evidence the rest of this panel was missing. Counts and
+                  timings describe the work; only the query says what was asked,
+                  and that is the difference between a graph being real and
+                  being claimed. */}
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                Asked of the store
+              </Typography>
+
+              {trace.queries.map((query, index) => (
+                <Box
+                  key={`${query.pass_name}-${index}`}
+                  sx={{ mb: 1, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}
+                >
+                  <Box
+                    sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}
+                  >
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                      {query.pass_name}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      {query.rows} {query.rows === 1 ? 'row' : 'rows'} ·{' '}
+                      {formatDuration(query.elapsed_ms)}
+                    </Typography>
+                  </Box>
+
+                  <Box
+                    component="pre"
+                    sx={{
+                      m: 0,
+                      mt: 0.5,
+                      fontSize: '0.7rem',
+                      // The query is wider than the panel and must scroll in
+                      // its own box; a trace that widens the conversation is a
+                      // worse regression than one that is hard to read.
+                      overflowX: 'auto',
+                      whiteSpace: 'pre',
+                    }}
+                  >
+                    {query.text}
+                  </Box>
+
+                  {onOpenQuery && (
+                    <Button
+                      size="small"
+                      onClick={() => onOpenQuery(query)}
+                      sx={{ mt: 0.5, px: 0.5, minWidth: 0 }}
+                    >
+                      Run this query
+                    </Button>
+                  )}
+                </Box>
+              ))}
+            </Box>
+          ) : null}
 
           {trace.notes?.length ? (
             <Box sx={{ mb: 1.5 }}>

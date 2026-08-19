@@ -191,6 +191,23 @@ export interface UsagePayload {
   output_tokens: number;
 }
 
+/** One query the pipeline issued, as the store received it. */
+export interface IssuedQuery {
+  /** Which pass issued it — entity, vocabulary, expansion, schema. */
+  pass_name: string;
+  /** The query language, so a reader knows what they are looking at. */
+  language: string;
+  text: string;
+  /**
+   * Values bound to the query's parameter slots, kept apart from the text
+   * because that is how the driver received them. Folding them in would show a
+   * string that never ran.
+   */
+  parameters: Record<string, unknown>;
+  rows: number;
+  elapsed_ms: number;
+}
+
 export interface DonePayload {
   usage?: UsagePayload;
   citations?: Citation[];
@@ -200,6 +217,12 @@ export interface DonePayload {
   backend?: string;
   /** How many candidates were retrieved before ranking cut them down. */
   candidates?: number;
+  /**
+   * What was actually asked of the store. Empty for a backend that issues no
+   * query — the fixture store filters a bundled graph in memory — and empty
+   * when a deployment has chosen not to publish its schema shape.
+   */
+  queries?: IssuedQuery[];
   /**
    * Things the pipeline declined to do, and why — a URL it would not fetch,
    * most often. Reported rather than only logged: a refusal the person who

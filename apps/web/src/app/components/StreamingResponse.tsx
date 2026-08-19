@@ -20,7 +20,7 @@ import {
 } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { TenantBrand, TenantCopy } from '@ragstone/shared';
+import type { IssuedQuery, TenantBrand, TenantCopy } from '@ragstone/shared';
 import type { QueryTrace } from '@/api/trace';
 import type { Message } from '@/types';
 import { TracePanel } from './TracePanel';
@@ -32,6 +32,8 @@ interface StreamingResponseProps {
   onRetry?: () => void;
   brand: TenantBrand;
   copy: TenantCopy;
+  /** Hands a query the pipeline issued to the console, via the trace panel. */
+  onOpenQuery?: (query: IssuedQuery) => void;
 }
 
 export const StreamingResponse: React.FC<StreamingResponseProps> = ({
@@ -41,6 +43,7 @@ export const StreamingResponse: React.FC<StreamingResponseProps> = ({
   onRetry,
   brand,
   copy,
+  onOpenQuery,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -63,7 +66,12 @@ export const StreamingResponse: React.FC<StreamingResponseProps> = ({
         {messages.length === 0 && !isStreaming && <EmptyState brand={brand} copy={copy} />}
 
         {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} onRetry={onRetry} />
+          <MessageBubble
+            key={message.id}
+            message={message}
+            onRetry={onRetry}
+            onOpenQuery={onOpenQuery}
+          />
         ))}
 
         {isStreaming && currentStatus && (
@@ -171,10 +179,11 @@ const markdownComponents = {
   ),
 };
 
-const MessageBubble: React.FC<{ message: Message; onRetry?: () => void }> = ({
-  message,
-  onRetry,
-}) => {
+const MessageBubble: React.FC<{
+  message: Message;
+  onRetry?: () => void;
+  onOpenQuery?: (query: IssuedQuery) => void;
+}> = ({ message, onRetry, onOpenQuery }) => {
   const isUser = message.role === 'user';
   const hasFailed = message.status === 'error';
   const wasStopped = message.status === 'stopped';
@@ -240,7 +249,9 @@ const MessageBubble: React.FC<{ message: Message; onRetry?: () => void }> = ({
           </Box>
         )}
 
-        {!isUser && message.trace ? <TracePanel trace={message.trace as QueryTrace} /> : null}
+        {!isUser && message.trace ? (
+          <TracePanel trace={message.trace as QueryTrace} onOpenQuery={onOpenQuery} />
+        ) : null}
 
         {!isUser && message.citations && message.citations.length > 0 && (
           <>

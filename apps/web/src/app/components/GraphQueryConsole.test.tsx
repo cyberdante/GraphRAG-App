@@ -155,3 +155,78 @@ describe('when the deployment has nothing to query', () => {
     expect(screen.getByRole('button', { name: /Run query/ })).toBeDisabled();
   });
 });
+
+const PIPELINE_QUERY = {
+  pass_name: 'entity',
+  language: 'cypher',
+  text: 'MATCH (s)-[r]->(o) WHERE any(k IN $keywords WHERE s.label CONTAINS k) RETURN s.id',
+  parameters: { keywords: ['supplier'], limit: 12 },
+  rows: 9,
+  elapsed_ms: 21,
+};
+
+function renderWithLoaded(loaded = PIPELINE_QUERY) {
+  render(
+    <ThemeProvider theme={THEME}>
+      <GraphQueryConsole
+        open
+        onClose={vi.fn()}
+        backends={BACKENDS}
+        domain={DOMAIN}
+        backend="cypher"
+        loaded={loaded}
+      />
+    </ThemeProvider>,
+  );
+}
+
+/**
+ * Replaying the query the pipeline issued. The presets show the kind of thing
+ * this service asks; this shows what it asked for the answer just read, which
+ * is a different and stronger claim.
+ */
+describe('a query handed over from the trace', () => {
+  it('loads it instead of the preset', () => {
+    renderWithLoaded();
+
+    expect(screen.getByLabelText('Query')).toHaveValue(PIPELINE_QUERY.text);
+  });
+
+  it('shows the values bound to it', () => {
+    // A query full of $keywords with nothing saying what they hold is not
+    // evidence of anything.
+    renderWithLoaded();
+
+    expect(screen.getByText(/"supplier"/)).toBeInTheDocument();
+  });
+
+  it('sends the parameters, so it runs what ran', async () => {
+    respondWith({ columns: ['id'], rows: [{ id: 'sup_1' }], elapsed_ms: 4, truncated: false });
+    renderWithLoaded();
+
+    await userEvent.click(screen.getByRole('button', { name: /run/i }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    const [, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    const body = JSON.parse(init.body);
+    expect(body.query).toBe(PIPELINE_QUERY.text);
+    expect(body.parameters).toEqual(PIPELINE_QUERY.parameters);
+  });
+
+  it('drops the parameters when a preset is chosen instead', async () => {
+    // A preset binds nothing. Carrying the pipeline's values into it would send
+    // values the query has no slots for.
+    respondWith({ columns: ['n'], rows: [], elapsed_ms: 2, truncated: false });
+    renderWithLoaded();
+
+    await userEvent.click(screen.getByLabelText('Start from'));
+    await userEvent.click(screen.getByRole('option', { name: 'What is in the store' }));
+    await userEvent.click(screen.getByRole('button', { name: /run/i }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    const [, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    const body = JSON.parse(init.body);
+    expect(body.query).toBe('MATCH (n) RETURN n');
+    expect(body.parameters).toBeUndefined();
+  });
+});

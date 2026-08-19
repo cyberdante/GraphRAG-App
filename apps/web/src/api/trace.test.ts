@@ -142,3 +142,35 @@ describe('what the collapsed trace says', () => {
     expect(snapshot.model).toBe('fixtures');
   });
 });
+
+describe('the queries retrieval issued', () => {
+  it('carries them into the snapshot', () => {
+    const recorder = new TraceRecorder(fakeClock().read);
+    recorder.finish({
+      backend: 'cypher',
+      queries: [
+        {
+          pass_name: 'entity',
+          language: 'cypher',
+          text: 'MATCH (n) RETURN n',
+          parameters: { limit: 5 },
+          rows: 3,
+          elapsed_ms: 7,
+        },
+      ],
+    });
+
+    expect(recorder.snapshot().queries).toHaveLength(1);
+    expect(recorder.snapshot().queries?.[0]?.pass_name).toBe('entity');
+  });
+
+  it('leaves the field absent when the backend issued none', () => {
+    // Absent rather than an empty array: the panel keys its whole section on
+    // this, and an empty section headed "Asked of the store" would imply
+    // something was asked and returned nothing.
+    const recorder = new TraceRecorder(fakeClock().read);
+    recorder.finish({ backend: 'fixtures', queries: [] });
+
+    expect(recorder.snapshot().queries).toBeUndefined();
+  });
+});

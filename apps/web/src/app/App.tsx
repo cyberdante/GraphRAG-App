@@ -38,7 +38,7 @@ import {
   type RetrievalSettings,
 } from '@/utils/retrievalSettings';
 import { THEME_KEY, keysFor, purgeLegacyKeys } from '@/utils/conversationStore';
-import type { Tenant, BackendInfo, DomainInfo
+import type { Tenant, BackendInfo, DomainInfo, IssuedQuery
 } from '@ragstone/shared';
 import type { GraphData, Message, QueryHistoryItem, QueryRequest } from '@/types';
 
@@ -78,6 +78,10 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
   const [retrievalOpen, setRetrievalOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [queryOpen, setQueryOpen] = useState(false);
+  // A query handed over from a trace. Held here rather than inside the
+  // console because the console is unmounted until it opens, and the click
+  // that hands the query over is the click that opens it.
+  const [loadedQuery, setLoadedQuery] = useState<IssuedQuery | null>(null);
   const [retrieval, setRetrieval] = useState<RetrievalSettings>(DEFAULT_SETTINGS);
   const [backends, setBackends] = useState<BackendInfo[]>([]);
   const [domains, setDomains] = useState<DomainInfo[]>([]);
@@ -455,6 +459,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
           // The store the answers came from, so the console asks the same one
           // rather than whatever the deployment defaults to.
           backend={retrieval.backend}
+          loaded={loadedQuery}
         />
 
         <RetrievalControls
@@ -528,6 +533,10 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
                   isStreaming={isStreaming}
                   currentStatus={currentStatus}
                   onRetry={handleRetry}
+                  onOpenQuery={(query) => {
+                    setLoadedQuery(query);
+                    setQueryOpen(true);
+                  }}
                   brand={tenant.brand}
                   // A tenant's own phrasing wins; the domain supplies starters
                   // when a tenant declares none, which is what makes a subject

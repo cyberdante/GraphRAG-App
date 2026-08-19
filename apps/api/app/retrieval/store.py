@@ -12,6 +12,7 @@ turn this service into an SSRF vector aimed at whatever the VPC can see.
 
 from typing import Protocol, runtime_checkable
 
+from .issued import QueryRecorder
 from .models import Candidate, RetrievalRequest
 from .schema import GraphSchema
 
@@ -26,8 +27,16 @@ class GraphStore(Protocol):
     #: Human-readable, for the backend listing the UI offers.
     description: str
 
-    async def retrieve(self, request: RetrievalRequest) -> list[Candidate]:
-        """Return candidate evidence for the question, unranked."""
+    async def retrieve(
+        self, request: RetrievalRequest, recorder: QueryRecorder | None = None
+    ) -> list[Candidate]:
+        """Return candidate evidence for the question, unranked.
+
+        `recorder`, when given, collects the queries this call issued so the
+        trace can show what was actually asked. Optional because a backend may
+        genuinely issue none — the fixture store filters in memory — and passed
+        per call rather than held on the store, which serves every request.
+        """
         ...
 
     async def schema(self) -> GraphSchema:

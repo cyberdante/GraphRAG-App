@@ -89,6 +89,23 @@ class QueryPresetInfo(BaseModel):
     query: str
 
 
+class IssuedQueryInfo(BaseModel):
+    """One query the pipeline issued, as it was sent.
+
+    Text and parameters stay apart, because that is how the driver received
+    them. Folding the values in would produce a string that reads as what ran
+    and is not, and would demonstrate query-building by concatenation to the one
+    audience most likely to copy it.
+    """
+
+    pass_name: str
+    language: str
+    text: str
+    parameters: dict[str, object] = Field(default_factory=dict)
+    rows: int = 0
+    elapsed_ms: int = 0
+
+
 class GraphQueryRequest(BaseModel):
     """A query somebody typed.
 
@@ -98,6 +115,10 @@ class GraphQueryRequest(BaseModel):
 
     query: str
     backend: str | None = None
+    #: Values for the query's parameter slots, so a query the pipeline issued can
+    #: be replayed as it ran rather than rewritten to be self-contained. Bound by
+    #: the driver, never interpolated.
+    parameters: dict[str, object] | None = None
 
 
 class GraphQueryResult(BaseModel):
@@ -188,6 +209,11 @@ class DonePayload(BaseModel):
     backend: str | None = None
     #: Retrieved before ranking, so the trace shows what was considered.
     candidates: int | None = None
+    #: What was actually asked of the store. The trace could report how much
+    #: was considered and how long it took, but not the question behind the
+    #: numbers — which is the part that shows the graph is real rather than
+    #: decorative. Empty for a backend that issues no query.
+    queries: list[IssuedQueryInfo] | None = None
     #: Things the pipeline declined to do, and why — a URL it would not fetch,
     #: most often. Collected and never reported is the same as not checking:
     #: the refusal has to reach the person who attached the thing.

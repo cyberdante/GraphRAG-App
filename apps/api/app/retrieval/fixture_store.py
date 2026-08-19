@@ -11,6 +11,7 @@ from collections import Counter
 from .. import fixtures
 from ..models import GraphEdge, GraphNode
 from . import passes, scoring
+from .issued import QueryRecorder
 from .models import Candidate, RetrievalRequest
 from .schema import GraphSchema, SchemaEdge
 
@@ -26,7 +27,14 @@ class FixtureGraphStore:
     name = "fixtures"
     description = "Bundled supply-chain sample. No external services."
 
-    async def retrieve(self, request: RetrievalRequest) -> list[Candidate]:
+    async def retrieve(
+        self, request: RetrievalRequest, recorder: QueryRecorder | None = None
+    ) -> list[Candidate]:
+        # The recorder is accepted and deliberately left empty. This store
+        # filters a list in Python; it sends nothing to anything. Writing a
+        # query string here to fill the trace would be the worst available
+        # outcome — a reader would take it for something a database ran, and
+        # the one backend that cannot mislead about its evidence would.
         graph = fixtures.SUPPLY_CHAIN_GRAPH
         nodes = {node.id: node for node in graph.nodes}
 

@@ -22,6 +22,7 @@ from .models import (
     DeltaPayload,
     DonePayload,
     ErrorPayload,
+    IssuedQueryInfo,
     QueryRequest,
     StatusPayload,
     UsagePayload,
@@ -29,11 +30,36 @@ from .models import (
 from .ontology import graph_to_jsonld
 from .retrieval import scoring
 from .retrieval.graph_frame import graph_from_candidates, grounded_in
+from .retrieval.issued import QueryRecorder
 from .retrieval.models import RetrievalRequest
 from .retrieval.registry import BackendRegistry
 from .retrieval.schema import with_declared
 
 logger = logging.getLogger(__name__)
+
+
+def issued_queries(recorder: QueryRecorder, settings: Settings) -> list[IssuedQueryInfo]:
+    """The queries this request issued, as the wire carries them.
+
+    Returns an empty list rather than omitting the field when a deployment has
+    turned this off, or when the backend issues no query at all. Both are real
+    answers to "what was asked", and the client distinguishes them by whether
+    the backend claims a query language — the fixture store does not.
+    """
+    if not settings.expose_issued_queries:
+        return []
+
+    return [
+        IssuedQueryInfo(
+            pass_name=query.pass_name,
+            language=query.language,
+            text=query.text,
+            parameters=query.parameters,
+            rows=query.rows,
+            elapsed_ms=query.elapsed_ms,
+        )
+        for query in recorder.queries
+    ]
 
 
 def _graph_payload(graph: object, domain: domains.Domain) -> dict:
@@ -95,6 +121,9 @@ async def stream_answer(
         keywords = scoring.extract_keywords(query_text)
         top_k = min(request.retrieval.top_k or settings.top_k_default, settings.top_k_max)
 
+        # One recorder per request. Anything remembered on the store would
+        # belong to whichever question happened to finish last.
+        recorder = QueryRecorder()
         candidates = await store.retrieve(
             RetrievalRequest(
                 query=query_text,
@@ -105,7 +134,8 @@ async def stream_answer(
                 entity_types=request.retrieval.graph.entity_types,
                 entity_ids=request.input.entityIds or [],
                 top_k=top_k,
-            )
+            ),
+            recorder,
         )
 
         # Attached documents join the same candidate pool as the graph, so they
@@ -245,6 +275,7 @@ async def stream_answer(
                 model=getattr(generator, "model_name", generator.name),
                 backend=store.name,
                 candidates=len(candidates),
+                queries=issued_queries(recorder, settings),
                 notes=notes or None,
             ),
         )
