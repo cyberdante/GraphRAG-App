@@ -17,15 +17,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
 
+      # corepack rather than pnpm/action-setup: the action is fetched from
+      # codeload on every run, and a 429 there took this job down on a day when
+      # nothing was wrong with the code. The version comes from packageManager
+      # in package.json either way, so this is one fewer thing between a commit
+      # and knowing whether it works. The appearance job already does this.
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
 
       - name: Typecheck
         run: pnpm typecheck
