@@ -23,7 +23,8 @@ import {
   TableChart as CsvIcon,
   Code as JsonIcon,
   Tune as TuneIcon,
-  Palette as PaletteIcon
+  Palette as PaletteIcon,
+  Terminal as TerminalIcon
 } from '@mui/icons-material';
 
 interface NavbarProps {
@@ -35,6 +36,8 @@ interface NavbarProps {
   onRetrievalClick: () => void;
   /** Opens the theme editor, when this deployment offers one. */
   onEditThemeClick?: () => void;
+  /** Opens the graph query console. */
+  onQueryClick: () => void;
   darkMode: boolean;
   onThemeToggle: () => void;
   onNewChat: () => void;
@@ -50,7 +53,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   switcher, 
   onMenuClick,
   onRetrievalClick,
-  onEditThemeClick, 
+  onEditThemeClick,
+  onQueryClick, 
   darkMode, 
   onThemeToggle, 
   onNewChat,
@@ -233,6 +237,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             </IconButton>
           </Tooltip>
         )}
+
+        <Tooltip title="Graph query">
+          <IconButton
+            onClick={onQueryClick}
+            sx={{ color: 'text.primary' }}
+            aria-label="Graph query"
+          >
+            <TerminalIcon />
+          </IconButton>
+        </Tooltip>
 
         <Tooltip title="Retrieval settings">
           <IconButton

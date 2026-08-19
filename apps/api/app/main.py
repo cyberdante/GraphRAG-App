@@ -92,6 +92,7 @@ async def backends(registry: BackendRegistry = Depends(get_registry)) -> list[Ba
             name=store.name,
             description=store.description,
             default=store.name == registry.default,
+            queryable=hasattr(store, "run_readonly"),
         )
         for store in registry.available()
     ]

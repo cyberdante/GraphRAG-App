@@ -74,6 +74,10 @@ class BackendInfo(BaseModel):
     name: str
     description: str
     default: bool
+    #: Whether this backend can run a typed query. The fixture store serves a
+    #: bundled graph rather than a database, so a console pointed at it has
+    #: nothing to run — better said here than discovered by running one.
+    queryable: bool = False
 
 
 class QueryPresetInfo(BaseModel):

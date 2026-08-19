@@ -87,6 +87,30 @@ export interface BackendInfo {
   name: string;
   description: string;
   default: boolean;
+  /**
+   * Whether this backend can run a typed query. The fixture store serves a
+   * bundled graph rather than a database, so a console pointed at it has
+   * nothing to run.
+   */
+  queryable?: boolean;
+}
+
+/** A query worth starting from, tagged with the language it is written in. */
+export interface QueryPresetInfo {
+  label: string;
+  description: string;
+  language: string;
+  query: string;
+}
+
+/** What POST /api/graph/query returns. */
+export interface GraphQueryResult {
+  columns: string[];
+  rows: Array<Record<string, unknown>>;
+  /** Milliseconds the store took, so a slow query reads as slow rather than broken. */
+  elapsed_ms: number;
+  /** True when the row cap cut the result, so a partial answer cannot read as complete. */
+  truncated: boolean;
 }
 
 /** One subject this deployment can hold a graph about, from GET /api/domains. */
@@ -103,6 +127,8 @@ export interface DomainInfo {
   classes: string[];
   /** Questions worth asking of this shape, before anyone has typed. */
   starters: string[];
+  /** Queries worth starting from. */
+  presets: QueryPresetInfo[];
   /** Where the vocabulary is served. */
   ontology: string;
   default: boolean;

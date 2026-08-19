@@ -29,6 +29,7 @@ import { fetchBackends } from '@/api/backends';
 import { fetchDomains, resolveDomain } from '@/api/domains';
 import { RetrievalControls } from './components/RetrievalControls';
 import { ThemeEditor } from './components/ThemeEditor';
+import { GraphQueryConsole } from './components/GraphQueryConsole';
 import {
   DEFAULT_SETTINGS,
   parseSettings,
@@ -76,6 +77,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
   const keys = useMemo(() => keysFor(tenant.id), [tenant.id]);
   const [retrievalOpen, setRetrievalOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [queryOpen, setQueryOpen] = useState(false);
   const [retrieval, setRetrieval] = useState<RetrievalSettings>(DEFAULT_SETTINGS);
   const [backends, setBackends] = useState<BackendInfo[]>([]);
   const [domains, setDomains] = useState<DomainInfo[]>([]);
@@ -445,6 +447,16 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
           />
         )}
 
+        <GraphQueryConsole
+          open={queryOpen}
+          onClose={() => setQueryOpen(false)}
+          backends={backends}
+          domain={domain}
+          // The store the answers came from, so the console asks the same one
+          // rather than whatever the deployment defaults to.
+          backend={retrieval.backend}
+        />
+
         <RetrievalControls
           open={retrievalOpen}
           onClose={() => setRetrievalOpen(false)}
@@ -473,6 +485,7 @@ function AppContent({ tenant: initialTenant }: { tenant: Tenant }) {
           }
           onMenuClick={() => setSidebarOpen(true)}
           onRetrievalClick={() => setRetrievalOpen(true)}
+          onQueryClick={() => setQueryOpen(true)}
           onEditThemeClick={themeEditorEnabled() ? () => setEditorOpen(true) : undefined}
           darkMode={darkMode}
           onThemeToggle={() => setDarkMode((previous) => !previous)}

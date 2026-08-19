@@ -8,7 +8,7 @@ const SUPPLY: DomainInfo = {
   version: '1.0.0',
   classes: ['Supplier', 'Risk'],
   starters: ['Which suppliers are at risk?'],
-  ontology: '/ontology/supply-chain.ttl',
+  presets: [], ontology: '/ontology/supply-chain.ttl',
   default: true,
 };
 
@@ -18,7 +18,7 @@ const CLINICAL: DomainInfo = {
   label: 'Clinical trials',
   classes: ['Trial', 'Site'],
   starters: ['Show enrolment by site'],
-  ontology: '/ontology/clinical-trials.ttl',
+  presets: [], ontology: '/ontology/clinical-trials.ttl',
   default: false,
 };
 

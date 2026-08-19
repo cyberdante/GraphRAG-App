@@ -10,8 +10,8 @@ import { ThemeEditor } from './ThemeEditor';
 const THEME = buildTheme(acme, false);
 
 const DOMAINS: DomainInfo[] = [
-  { id: 'supply-chain', label: 'Supply chain', version: '1.0.0', classes: ['Supplier'], starters: [], ontology: '/ontology/supply-chain.ttl', default: true },
-  { id: 'clinical-trials', label: 'Clinical trials', version: '1.0.0', classes: ['Trial'], starters: [], ontology: '/ontology/clinical-trials.ttl', default: false },
+  { id: 'supply-chain', label: 'Supply chain', version: '1.0.0', classes: ['Supplier'], starters: [], presets: [], ontology: '/ontology/supply-chain.ttl', default: true },
+  { id: 'clinical-trials', label: 'Clinical trials', version: '1.0.0', classes: ['Trial'], starters: [], presets: [], ontology: '/ontology/clinical-trials.ttl', default: false },
 ];
 
 function renderEditor(tenant: Tenant = acme, darkMode = false) {
