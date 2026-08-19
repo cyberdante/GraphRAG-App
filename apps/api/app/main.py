@@ -8,14 +8,20 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from . import domains, ontology
 from .attachments import AttachmentRejected, AttachmentStore
 from .config import Settings, get_settings
+from .extraction import registry as extraction_registry
+from .extraction.models import Proposal, ProposalStatus
+from .extraction.review import ReviewQueue
 from .llm.generator import AnswerGenerator
 from .llm.registry import build_generator
 from .models import (
     AttachmentInfo,
     BackendInfo,
     DomainInfo,
+    ExtractionResult,
     GraphQueryRequest,
     GraphQueryResult,
+    ProposalDecision,
+    ProposalInfo,
     QueryPresetInfo,
     QueryRequest,
 )
@@ -33,6 +39,10 @@ logger = logging.getLogger(__name__)
 #: trade: with several workers an upload may land on one and be asked for on
 #: another. A deployment that meant it would use object storage.
 attachment_store = AttachmentStore()
+#: Proposals waiting for a person. In memory and per process, with the same
+#: limitation the attachment store states: a deployment that meant it would put
+#: these in a database.
+review_queue = ReviewQueue()
 
 app = FastAPI(
     title="Ragstone API",
@@ -127,6 +137,98 @@ async def list_domains(settings: Settings = Depends(get_settings)) -> list[Domai
         )
         for domain in domains.DOMAINS.values()
     ]
+
+
+def _as_info(proposal: Proposal) -> ProposalInfo:
+    return ProposalInfo(
+        id=proposal.id,
+        subject=proposal.subject,
+        predicate=proposal.predicate,
+        object=proposal.object,
+        quote=proposal.quote,
+        source=proposal.source,
+        subject_type=proposal.subject_type,
+        object_type=proposal.object_type,
+        confidence=proposal.confidence,
+        status=str(proposal.status),
+        note=proposal.note,
+    )
+
+
+@app.post("/api/extraction/{attachment_id}", response_model=ExtractionResult)
+async def propose_statements(
+    attachment_id: str,
+    settings: Settings = Depends(get_settings),
+) -> ExtractionResult:
+    """Read an uploaded document and propose statements, asserting none.
+
+    Nothing here reaches the graph. Extraction proposes and a person disposes,
+    which is not ceremony: a model reading a contract will assert things the
+    contract does not say, and a graph that accepts them quietly is worse than
+    no graph — every answer built on it inherits the error while still citing a
+    source.
+
+    Re-reading a document is safe. Proposal ids come from their content, so a
+    second run collides with the decisions already made rather than reopening
+    them.
+    """
+    attachment = attachment_store.get(attachment_id)
+    if attachment is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No such attachment. Uploads are held in memory and the oldest are "
+                "evicted, so one from an earlier session may be gone."
+            ),
+        )
+
+    domain = domains.get(settings.default_domain)
+    extractor = extraction_registry.build(settings, domain)
+    extraction = await extractor.extract(attachment.text, attachment.name)
+    queued = review_queue.add(extraction)
+
+    return ExtractionResult(
+        source=extraction.source,
+        proposals=[_as_info(proposal) for proposal in queued],
+        skipped=extraction.skipped,
+        extractor=extraction.extractor,
+    )
+
+
+@app.get("/api/extraction", response_model=list[ProposalInfo])
+async def list_proposals(status: str | None = None) -> list[ProposalInfo]:
+    """Everything waiting for a person, or everything in one state."""
+    if status is None:
+        proposals = review_queue.all()
+    elif status == "proposed":
+        proposals = review_queue.pending()
+    elif status == "accepted":
+        proposals = review_queue.accepted()
+    else:
+        proposals = [p for p in review_queue.all() if str(p.status) == status]
+
+    return [_as_info(proposal) for proposal in proposals]
+
+
+@app.post("/api/extraction/proposals/{proposal_id}", response_model=ProposalInfo)
+async def decide_proposal(proposal_id: str, decision: ProposalDecision) -> ProposalInfo:
+    """Accept or reject one proposal.
+
+    Accepting does not write to the graph yet — committing accepted statements
+    is a separate step with a separate set of failure modes, chiefly resolving
+    "ITAMCO" to a node that may or may not already exist. Saying so here rather
+    than implying otherwise: an endpoint named accept that silently wrote would
+    make the review a formality.
+    """
+    updated = review_queue.decide(
+        proposal_id,
+        ProposalStatus(decision.status),
+        decision.note,
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="No such proposal.")
+
+    return _as_info(updated)
 
 
 @app.post("/api/graph/query", response_model=GraphQueryResult)

@@ -131,6 +131,48 @@ class GraphQueryResult(BaseModel):
     truncated: bool
 
 
+class ProposalInfo(BaseModel):
+    """One proposed statement, as a reviewer sees it."""
+
+    id: str
+    subject: str
+    predicate: str
+    object: str
+    #: The passage it came from. A reviewer asked to judge a statement without
+    #: its source is being asked to trust the extractor, which is the thing
+    #: under review.
+    quote: str
+    source: str
+    subject_type: str | None = None
+    object_type: str | None = None
+    confidence: float
+    status: str
+    note: str | None = None
+
+
+class ExtractionResult(BaseModel):
+    """What one document produced, and what was passed over."""
+
+    source: str
+    proposals: list[ProposalInfo]
+    #: Passages looked at and not turned into statements. Reported because an
+    #: extraction returning two proposals from a long document has either found
+    #: very little or gone very wrong, and a bare list cannot say which.
+    skipped: int
+    #: Which extractor did it. "A model said so" and "a regular expression said
+    #: so" deserve different scepticism.
+    extractor: str
+
+
+class ProposalDecision(BaseModel):
+    """A person accepting or rejecting a proposal."""
+
+    status: Literal["accepted", "rejected"]
+    #: Why, for a rejection. Kept, because "we looked at this and said no" is
+    #: information the next extraction run should not have to rediscover.
+    note: str | None = None
+
+
 class DomainInfo(BaseModel):
     """One subject this deployment can hold a graph about."""
 

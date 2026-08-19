@@ -107,6 +107,15 @@ class Settings(BaseSettings):
     #: holding a million rows.
     max_query_rows: int = 200
 
+    #: Which extractor reads uploaded documents. Empty means the reference one,
+    #: which is a pattern match over the declared vocabulary — enough to make the
+    #: review loop runnable with nothing configured, and not enough for real
+    #: documents. Naming one that is not installed fails loudly rather than
+    #: quietly falling back, because a deployment that believes its documents
+    #: were read by a model and got a regular expression would trust the results
+    #: far more than they deserve.
+    extractor: str = ""
+
     #: How many parameter slots a replayed query may bind. Values are bound by
     #: the driver rather than interpolated, so this is a size bound and not an
     #: injection one — a console request should not be able to hand the driver
