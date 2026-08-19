@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AttachmentPrompt, type PromptKind } from './AttachmentPrompt';
+import { describeSensitive, findSensitive } from '@/utils/sensitive';
 import {
   nextLocalId,
   readyIds,
@@ -7,6 +8,7 @@ import {
   type AttachmentState,
 } from '@/api/attachments';
 import {
+  Alert,
   Box,
   CircularProgress,
   TextField,
@@ -28,6 +30,7 @@ import {
   MoreVert as MoreVertIcon,
   Stop as StopIcon,
   ErrorOutline as ErrorOutlineIcon,
+  PrivacyTip as PrivacyTipIcon,
 } from '@mui/icons-material';
 
 interface QueryInputProps {
@@ -47,6 +50,11 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
   const [entityIds, setEntityIds] = useState<string[]>([]);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [prompting, setPrompting] = useState<PromptKind | null>(null);
+
+  // Personal data is noticed, not removed. The question goes exactly as typed;
+  // what changes is that the person knows what is in it before it leaves the
+  // browser. Cheap enough per keystroke at the length of a question.
+  const sensitive = useMemo(() => describeSensitive(findSensitive(query)), [query]);
 
   // Only what actually arrived. Sending an id for a rejected file would ask
   // the service to answer from a document it never received.
@@ -277,6 +285,19 @@ export const QueryInput: React.FC<QueryInputProps> = ({ onSubmit, onStop, isStre
           )}
         </Box>
       </Box>
+
+      {sensitive && (
+        <Alert
+          severity="warning"
+          icon={<PrivacyTipIcon fontSize="inherit" />}
+          // Announced rather than interrupting: the question is still valid and
+          // still sendable, and a modal here would train people to dismiss it.
+          role="status"
+          sx={{ mt: 1.5, alignItems: 'center' }}
+        >
+          {sensitive}
+        </Alert>
+      )}
 
       {/* Options Menu */}
       <Menu
