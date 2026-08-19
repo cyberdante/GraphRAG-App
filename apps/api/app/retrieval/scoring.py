@@ -31,35 +31,70 @@ _WORD = re.compile(r"[a-z0-9#]+")
 
 
 def normalize(token: str) -> str:
-    """Folds the plural forms a question uses onto the singular a graph stores.
+    """Folds a question's word forms onto a prefix the graph's own text contains.
 
-    People ask about "suppliers" and "shipments"; a graph types its nodes
-    Supplier and Shipment. Without this the two vocabularies never meet, every
-    candidate scores zero, and ranking silently degrades to whatever order the
-    store returned — which is exactly what happened before this existed.
+    This is stemming, not lemmatisation, and the difference is the whole point.
+    The plan called for a lemmatiser, which returns a dictionary form: supplied
+    becomes supply. But nothing normalises the graph — matching is a substring
+    test against raw labels and relationship types — and "supply" does not occur
+    in "supplies". A lemmatiser would have made this case worse while looking
+    like the more sophisticated choice. Truncating both forms to the prefix they
+    share, "suppl", matches supplies, supplied, supplier and supply alike.
 
-    Three rules, applied in order, and each one earns its place:
+    That decides the shape of every rule below: cut to the longest prefix the
+    inflections agree on, never to a word.
 
-    - "-ies" to "-y", so policies finds policy.
-    - "-ches/-shes/-xes/-zes" lose both letters, so batches finds batch. Only
-      these endings, because "-ses" is genuinely ambiguous: buses is bus plus
-      es, warehouses is warehouse plus s, and nothing in the surface form
-      distinguishes them.
-    - Otherwise a trailing "s" goes, unless the word ends in -ss, -us or -is.
-      Those guards exist because status, analysis and address are not plurals,
-      and stemming them produced statu, analysi and addres.
+    The forms that reach a graph like this one, in the order they are checked:
 
-    Crude on purpose, and it will mis-stem words a dictionary would catch. Real
-    lemmatisation arrives with the spaCy pass in the retrieval port and belongs
-    there rather than being approximated further here.
+    - "-ies" and "-ied" lose all three, so supplies and supplied meet at suppl,
+      and policies meets policy at polic.
+    - "-ing" and "-ed" go, then a doubled final consonant collapses: shipping
+      and shipped both reach ship, which is also the prefix of shipment. Verb
+      forms are why this rule exists at all — a question asking which shipments
+      are *delayed* found nothing against a risk labelled "Delivery Delay",
+      because the stemmer only knew plurals.
+    - "-ches/-shes/-xes/-zes" lose two, so batches finds batch. Only these
+      endings, because "-ses" is ambiguous: buses is bus plus es, warehouses is
+      warehouse plus s, and the surface form does not say which.
+    - A trailing "y" after a consonant goes, so policy meets policies. After a
+      vowel it stays: delay must not become dela, and day must not become da.
+    - Otherwise a trailing "s" goes, unless the word ends -ss, -us or -is.
+      Status, analysis and address are not plurals, and stemming them produced
+      statu, analysi and addres.
+
+    Every rule keeps a floor on the length, because a three-letter stem matches
+    most of the graph and a two-letter one matches all of it. Over-stemming does
+    not fail loudly — it fills the budget with noise, which reads as bad ranking
+    rather than as a bad stem.
     """
-    if len(token) > 3 and token.endswith("ies"):
-        return f"{token[:-3]}y"
+    if len(token) > 4 and token.endswith(("ies", "ied")):
+        return token[:-3]
+    if len(token) > 5 and token.endswith("ing"):
+        return _undouble(token[:-3])
+    if len(token) > 4 and token.endswith("ed"):
+        return _undouble(token[:-2])
     if len(token) > 4 and token.endswith(("ches", "shes", "xes", "zes")):
         return token[:-2]
+    if len(token) > 4 and token.endswith("y") and token[-2] not in _VOWELS:
+        return token[:-1]
     if len(token) > 3 and token.endswith("s") and not token.endswith(("ss", "us", "is")):
         return token[:-1]
     return token
+
+
+_VOWELS = frozenset("aeiou")
+
+#: Consonants English doubles before -ed and -ing. Not every letter: "seed" ends
+#: in a doubled vowel and "off" is not a verb stem, and undoubling either would
+#: be wrong.
+_DOUBLED = frozenset("bdgklmnprt")
+
+
+def _undouble(stem: str) -> str:
+    """shipp -> ship, runn -> run, but pass and fill are left alone."""
+    if len(stem) > 3 and stem[-1] == stem[-2] and stem[-1] in _DOUBLED:
+        return stem[:-1]
+    return stem
 
 
 def tokenize(text: str) -> set[str]:
@@ -91,11 +126,18 @@ def overlap_relevancy(keywords: list[str], text: str) -> float:
     Deliberately measured against the question rather than the candidate: a
     long candidate should not be penalised for saying more than was asked, and
     a short one should not win by saying almost nothing.
+
+    The keywords are stemmed here rather than assumed to arrive stemmed. The
+    text side always is, via `tokenize`, so a caller passing raw words got zero
+    matches and no complaint — a silent nothing that reads as "the document is
+    irrelevant". Stemming is idempotent, so doing it twice costs nothing and
+    removes a trap that a change to the stemmer would otherwise spring on every
+    caller that hand-writes its keywords.
     """
     if not keywords:
         return 0.0
     tokens = tokenize(text)
-    matched = sum(1 for keyword in keywords if keyword in tokens)
+    matched = sum(1 for keyword in keywords if normalize(keyword) in tokens)
     return matched / len(keywords)
 
 

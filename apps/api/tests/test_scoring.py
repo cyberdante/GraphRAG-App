@@ -56,8 +56,39 @@ class TestTokenizing:
         }
 
     def test_folds_the_awkward_english_plurals_too(self) -> None:
-        assert tokenize("policies") == {"policy"}
+        # The stem is a shared prefix rather than a dictionary word, because
+        # nothing normalises the graph: matching is a substring test against raw
+        # labels, and "policy" does not occur in "policies".
+        assert tokenize("policies") == tokenize("policy")
         assert tokenize("batches") == {"batch"}
+
+    def test_folds_verb_forms_onto_the_noun_a_graph_stores(self) -> None:
+        # The gap that made this worth changing. A question asking which
+        # shipments are *delayed* found nothing against a risk labelled
+        # "Delivery Delay": the stemmer knew plurals and no other inflection.
+        assert tokenize("delayed") == tokenize("delay") == tokenize("delays")
+        assert tokenize("shipping") == tokenize("shipped") == tokenize("ships")
+
+    def test_folds_the_forms_that_only_agree_on_a_prefix(self) -> None:
+        # supplies, supplied and supply share no dictionary form that occurs in
+        # all three. A lemmatiser returns "supply", which is not a substring of
+        # "supplies" — it would have made this case worse while looking like the
+        # more sophisticated choice.
+        assert tokenize("supplies") == tokenize("supplied") == tokenize("supply")
+
+    def test_a_stem_still_occurs_in_the_words_it_came_from(self) -> None:
+        # The property the whole design rests on: whatever a question is stemmed
+        # to must survive a substring test against the graph's own text. This
+        # fails the moment a rule cuts to a form rather than a prefix.
+        for word in ("suppliers", "supplied", "shipments", "shipping", "delayed", "policies"):
+            stem = next(iter(tokenize(word)))
+            assert stem in word, f"{stem!r} is not a prefix of {word!r}"
+
+    def test_does_not_stem_a_word_into_nearly_nothing(self) -> None:
+        # Over-stemming does not fail loudly. It fills the search budget with
+        # everything, which reads as bad ranking rather than as a bad stem.
+        for word in ("day", "days", "risk", "risks", "bus", "ship"):
+            assert len(next(iter(tokenize(word)))) >= 3
 
     def test_leaves_words_that_only_look_plural(self) -> None:
         assert tokenize("status") == {"status"}
