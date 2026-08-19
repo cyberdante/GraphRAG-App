@@ -31,7 +31,7 @@ ranking to life.
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 #: Node ids carry this prefix so generated data is distinguishable from the
@@ -120,12 +120,34 @@ _SIGNAL_KINDS = (
 )
 
 
+#: Values a question is likely to name that no relationship carries. A shipment
+#: held at customs, a supplier in a country, a risk that is critical: all of them
+#: are state on a node rather than an edge, which is the ordinary shape for a
+#: graph and the one the first two passes cannot see.
+_SHIPMENT_STATUSES = (
+    "Awaiting Pickup",
+    "In Transit",
+    "Customs Hold",
+    "Delivered",
+    "Delayed",
+    "Returned",
+)
+_CARRIERS = ("Maersk", "DHL Freight", "Kuehne Nagel", "DB Schenker", "Expeditors")
+_COUNTRIES = ("Germany", "Vietnam", "Mexico", "Poland", "Taiwan", "India", "Turkey")
+_TIERS = ("Tier 1", "Tier 2", "Tier 3")
+_SEVERITIES = ("Critical", "High", "Moderate", "Low")
+
+
 @dataclass(frozen=True)
 class GeneratedNode:
     id: str
     label: str
     type: str
     group: int
+    #: Properties the node carries. Strings throughout, because they exist to be
+    #: matched against the words of a question and a number would need a
+    #: comparison this pipeline does not do.
+    attributes: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -263,6 +285,10 @@ def generate(
                 label=_supplier_name(rng, index),
                 type="Supplier",
                 group=_GROUPS["Supplier"],
+                attributes={
+                    "country": rng.choice(_COUNTRIES),
+                    "tier": "Tier 1" if is_hub else rng.choice(_TIERS[1:]),
+                },
             )
         )
 
@@ -288,6 +314,10 @@ def generate(
                     label=f"Shipment #{index:05d}-{offset:02d}",
                     type="Shipment",
                     group=_GROUPS["Shipment"],
+                    attributes={
+                        "status": rng.choice(_SHIPMENT_STATUSES),
+                        "carrier": rng.choice(_CARRIERS),
+                    },
                 )
             )
             add_edge(supplier_id, shipment_id, "SHIPS", "shipped")
@@ -311,6 +341,7 @@ def generate(
                     label=rng.choice(_RISK_KINDS),
                     type="Risk",
                     group=_GROUPS["Risk"],
+                    attributes={"severity": rng.choice(_SEVERITIES)},
                 )
             )
             add_edge(supplier_id, risk_id, "HAS_RISK", "affected by")

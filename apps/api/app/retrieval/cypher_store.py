@@ -87,6 +87,17 @@ class CypherGraphStore:
                     recorder=recorder,
                     pass_name="named ids",
                 )
+            # Properties the question names. A question about shipments held at
+            # customs names no entity, no class and no relationship — the state
+            # it asks about is a value on a node, which the two passes above
+            # cannot see however large their budget.
+            attribute_rows = await self._run(
+                session,
+                _BY_ATTRIBUTE,
+                {"types": types, "keywords": keywords, "limit": budgets.attribute},
+                recorder=recorder,
+                pass_name="attribute",
+            )
             vocabulary_rows = await self._run(
                 session,
                 _BY_VOCABULARY,
@@ -95,9 +106,9 @@ class CypherGraphStore:
                 pass_name="vocabulary",
             )
 
+            direct = entity_rows + attribute_rows + vocabulary_rows
             anchors = sorted(
-                {row["subject_id"] for row in entity_rows + vocabulary_rows}
-                | {row["object_id"] for row in entity_rows + vocabulary_rows}
+                {row["subject_id"] for row in direct} | {row["object_id"] for row in direct}
             )
 
             # Expansion follows the relationships the schema says are worth
@@ -128,6 +139,7 @@ class CypherGraphStore:
         return passes.merge(
             [
                 self._scored(entity_rows, keywords),
+                self._scored(attribute_rows, keywords),
                 self._scored(vocabulary_rows, keywords),
                 self._scored(expansion_rows, keywords),
             ],
@@ -383,6 +395,29 @@ _BY_VOCABULARY = f"""
                  OR toLower(labels(object)[0]) CONTAINS keyword
                  OR toLower(type(relation)) CONTAINS keyword
                  OR toLower(coalesce(relation.label, '')) CONTAINS keyword)
+    {_PROJECTION}
+"""
+
+#: Statements whose endpoints carry a property the question names — a shipment
+#: whose status is "Customs Hold", a supplier whose country is named, a risk
+#: whose severity is asked about.
+#:
+#: `properties(node)` is scanned rather than a fixed list of keys, because the
+#: keys are the deployment's and not ours: a store pointed at somebody else's
+#: graph has properties this project has never heard of, and naming the ones we
+#: happen to generate would search our own fixtures well and their data not at
+#: all. The label is excluded because the entity pass already matches it, and
+#: counting it here would spend the attribute budget re-finding entity hits.
+_BY_ATTRIBUTE = f"""
+    MATCH (subject)-[relation]->(object)
+    WHERE {_TYPE_FILTER}
+      AND any(keyword IN $keywords
+              WHERE any(key IN keys(subject)
+                        WHERE key <> 'label' AND key <> 'id'
+                          AND toLower(toString(subject[key])) CONTAINS keyword)
+                 OR any(key IN keys(object)
+                        WHERE key <> 'label' AND key <> 'id'
+                          AND toLower(toString(object[key])) CONTAINS keyword))
     {_PROJECTION}
 """
 

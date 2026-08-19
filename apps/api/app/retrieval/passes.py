@@ -17,7 +17,13 @@ Three passes, because one query cannot do all three jobs:
 "Which suppliers have risks" names no entity at all — it names two classes and
 one relationship, and only the schema connects them to rows.
 
-**Expansion.** One hop out from whatever the first two anchored on. The
+**Attribute.** Statements whose endpoints carry a *property* the question
+names. "Which shipments are held at customs" names no entity, no class and no
+relationship — it names a value sitting on a node, and the first two passes
+cannot see one. A graph that stores state as properties rather than as edges is
+the ordinary case, not an exotic one.
+
+**Expansion.** One hop out from whatever the others anchored on. The
 question names a supplier; the answer is usually about what that supplier is
 connected to. Without this a match returns the matched fact and nothing that
 explains it.
@@ -35,10 +41,18 @@ from . import scoring
 from .models import Candidate, RetrievalRequest
 from .schema import GraphSchema
 
-#: How the search budget divides. Entity and vocabulary matches are the direct
-#: answer to the question; expansion is context for it, and wants less.
-ENTITY_SHARE = 0.4
-VOCABULARY_SHARE = 0.4
+#: How the search budget divides. Entity, vocabulary and attribute matches are
+#: the direct answer to the question; expansion is context for it, and wants
+#: less.
+#:
+#: Attribute takes the smallest direct share because a property match is the
+#: narrowest of the three — a question naming a status names one, where a
+#: question naming a class names a whole population. Taken from entity and
+#: vocabulary evenly rather than from expansion, which was already the pass
+#: most easily starved.
+ENTITY_SHARE = 0.325
+VOCABULARY_SHARE = 0.325
+ATTRIBUTE_SHARE = 0.15
 EXPANSION_SHARE = 0.2
 
 
@@ -46,11 +60,12 @@ EXPANSION_SHARE = 0.2
 class Budgets:
     entity: int
     vocabulary: int
+    attribute: int
     expansion: int
 
     @property
     def total(self) -> int:
-        return self.entity + self.vocabulary + self.expansion
+        return self.entity + self.vocabulary + self.attribute + self.expansion
 
 
 def plan(max_candidates: int) -> Budgets:
@@ -64,6 +79,7 @@ def plan(max_candidates: int) -> Budgets:
     return Budgets(
         entity=max(1, int(budget * ENTITY_SHARE)),
         vocabulary=max(1, int(budget * VOCABULARY_SHARE)),
+        attribute=max(1, int(budget * ATTRIBUTE_SHARE)),
         expansion=max(1, int(budget * EXPANSION_SHARE)),
     )
 

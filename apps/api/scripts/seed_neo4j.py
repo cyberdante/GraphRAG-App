@@ -79,6 +79,10 @@ async def _write_nodes(session, by_label: dict[str, list[dict[str, Any]]]) -> in
                 UNWIND $rows AS row
                 MERGE (n:{label} {{id: row.id}})
                 SET n.label = row.label, n.group = row.group
+                // Attributes are flattened onto the node rather than nested,
+                // because a map property is not searchable and the whole point
+                // of carrying them is that a question can name one.
+                SET n += row.attributes
                 """,
                 {"rows": batch},
             )
@@ -142,7 +146,14 @@ async def seed(
     edges_by_type: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     for node in sample.nodes:
-        nodes_by_label[node.type].append({"id": node.id, "label": node.label, "group": node.group})
+        nodes_by_label[node.type].append(
+            {
+                "id": node.id,
+                "label": node.label,
+                "group": node.group,
+                "attributes": node.properties or {},
+            }
+        )
     for link in sample.links:
         edges_by_type[link.type].append(
             {
@@ -160,7 +171,14 @@ async def seed(
 
     generated = generator.generate(scale, seed=seed_value)
     for node in generated.nodes:
-        nodes_by_label[node.type].append({"id": node.id, "label": node.label, "group": node.group})
+        nodes_by_label[node.type].append(
+            {
+                "id": node.id,
+                "label": node.label,
+                "group": node.group,
+                "attributes": node.attributes,
+            }
+        )
     for edge in generated.edges:
         edges_by_type[edge.type].append(
             {

@@ -75,13 +75,24 @@ class FixtureGraphStore:
             )
         ][: budgets.vocabulary]
 
+        # Properties the question names. A question about shipments held at
+        # customs names no entity, no class and no relationship — the state it
+        # asks about is a value on a node, which neither pass above can see.
+        # Every key but id and label is scanned, because the keys belong to
+        # whatever graph a deployment points at and not to this project; label
+        # is left out because the entity pass already matches it.
+        attribute_hits = [
+            link for link in in_scope if self._matches(keywords, *self._attribute_text(nodes, link))
+        ][: budgets.attribute]
+
         # One hop out from whatever the direct passes anchored on, following the
         # relationships the schema says are worth following first (item 68).
         # Unordered, a tight budget spends itself on whichever edges happen to
         # come first — which for a hub supplier means its shipments, however
         # firmly the question was about risk.
-        anchors = {link.source for link in entity_hits + vocabulary_hits}
-        anchors |= {link.target for link in entity_hits + vocabulary_hits}
+        direct = entity_hits + attribute_hits + vocabulary_hits
+        anchors = {link.source for link in direct}
+        anchors |= {link.target for link in direct}
 
         plan = passes.relevant_predicates(await self.schema(), keywords)
         rank = {predicate: index for index, predicate in enumerate(plan)}
@@ -94,11 +105,23 @@ class FixtureGraphStore:
             [
                 [self._scored(nodes, link, keywords) for link in id_hits],
                 [self._scored(nodes, link, keywords) for link in entity_hits],
+                [self._scored(nodes, link, keywords) for link in attribute_hits],
                 [self._scored(nodes, link, keywords) for link in vocabulary_hits],
                 [self._scored(nodes, link, keywords) for link in expansion_hits],
             ],
             budgets.total,
         )
+
+    @staticmethod
+    def _attribute_text(nodes: dict[str, GraphNode], link) -> tuple[str, ...]:
+        """Every property value on either endpoint, id and label excluded."""
+        values: list[str] = []
+        for node_id in (link.source, link.target):
+            node = nodes.get(node_id)
+            for key, value in (node.properties or {}).items() if node else ():
+                if key not in ("id", "label"):
+                    values.append(str(value))
+        return tuple(values)
 
     async def schema(self) -> GraphSchema:
         graph = fixtures.SUPPLY_CHAIN_GRAPH
