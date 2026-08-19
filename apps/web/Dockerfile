@@ -30,5 +30,6 @@ FROM nginx:1.27-alpine AS serve
 
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/web/security-headers.conf /etc/nginx/security-headers.conf
 
 EXPOSE 80
