@@ -263,7 +263,7 @@ class TestTheReviewEndpoints:
     def test_reads_an_uploaded_document_and_proposes(self, client):
         attachment = self.upload(client)
 
-        body = client.post(f"/api/extraction/{attachment}").json()
+        body = client.post(f"/api/extraction/documents/{attachment}").json()
 
         assert body["extractor"] == "reference"
         assert body["skipped"] == 1
@@ -274,7 +274,7 @@ class TestTheReviewEndpoints:
     def test_every_proposal_carries_its_source_text(self, client):
         attachment = self.upload(client)
 
-        body = client.post(f"/api/extraction/{attachment}").json()
+        body = client.post(f"/api/extraction/documents/{attachment}").json()
 
         assert all(p["quote"] for p in body["proposals"])
         assert all(p["source"] == "notes.md" for p in body["proposals"])
@@ -282,14 +282,14 @@ class TestTheReviewEndpoints:
     def test_a_document_that_is_gone_says_so(self, client):
         # Uploads are in memory and evicted oldest first, so this is ordinary
         # rather than exceptional.
-        response = client.post("/api/extraction/missing-id")
+        response = client.post("/api/extraction/documents/missing-id")
 
         assert response.status_code == 404
         assert "evicted" in response.json()["detail"]
 
     def test_a_decision_is_recorded_and_survives_re_reading(self, client):
         attachment = self.upload(client)
-        proposal = client.post(f"/api/extraction/{attachment}").json()["proposals"][0]
+        proposal = client.post(f"/api/extraction/documents/{attachment}").json()["proposals"][0]
 
         rejected = client.post(
             f"/api/extraction/proposals/{proposal['id']}",
@@ -298,7 +298,7 @@ class TestTheReviewEndpoints:
         assert rejected["status"] == "rejected"
 
         # Reading the document again must not reopen it.
-        again = client.post(f"/api/extraction/{attachment}").json()
+        again = client.post(f"/api/extraction/documents/{attachment}").json()
         same = next(p for p in again["proposals"] if p["id"] == proposal["id"])
 
         assert same["status"] == "rejected"
@@ -319,7 +319,7 @@ class TestTheReviewEndpoints:
 
     def test_lists_what_is_waiting_separately_from_what_is_settled(self, client):
         attachment = self.upload(client)
-        proposals = client.post(f"/api/extraction/{attachment}").json()["proposals"]
+        proposals = client.post(f"/api/extraction/documents/{attachment}").json()["proposals"]
         client.post(f"/api/extraction/proposals/{proposals[0]['id']}", json={"status": "accepted"})
 
         accepted = client.get("/api/extraction", params={"status": "accepted"}).json()

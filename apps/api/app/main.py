@@ -8,6 +8,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from . import domains, ontology
 from .attachments import AttachmentRejected, AttachmentStore
 from .config import Settings, get_settings
+from .extraction import commit as extraction_commit
 from .extraction import registry as extraction_registry
 from .extraction.models import Proposal, ProposalStatus
 from .extraction.review import ReviewQueue
@@ -16,6 +17,10 @@ from .llm.registry import build_generator
 from .models import (
     AttachmentInfo,
     BackendInfo,
+    CommitRefusal,
+    CommitRequest,
+    CommitResult,
+    CommittedStatement,
     DomainInfo,
     ExtractionResult,
     GraphQueryRequest,
@@ -155,7 +160,12 @@ def _as_info(proposal: Proposal) -> ProposalInfo:
     )
 
 
-@app.post("/api/extraction/{attachment_id}", response_model=ExtractionResult)
+# Under /documents/ rather than at /api/extraction/{id} directly: a single
+# path segment collides with every literal route beside it, and it did —
+# /api/extraction/commit was read as an attachment called "commit" and answered
+# 404 from the wrong handler. Declaration order would have fixed that instance
+# and left the next one waiting.
+@app.post("/api/extraction/documents/{attachment_id}", response_model=ExtractionResult)
 async def propose_statements(
     attachment_id: str,
     settings: Settings = Depends(get_settings),
@@ -229,6 +239,65 @@ async def decide_proposal(proposal_id: str, decision: ProposalDecision) -> Propo
         raise HTTPException(status_code=404, detail="No such proposal.")
 
     return _as_info(updated)
+
+
+@app.post("/api/extraction/commit", response_model=CommitResult)
+async def commit_proposals(
+    request: CommitRequest,
+    settings: Settings = Depends(get_settings),
+    registry: BackendRegistry = Depends(get_registry),
+) -> CommitResult:
+    """Write accepted proposals into the graph.
+
+    The only endpoint in the service that writes. It takes proposal ids the
+    service already holds decisions for — never a query — so the read-only
+    guarantees the console rests on are not handed back through a second door.
+
+    Types come from the declared vocabulary rather than from the extractor, so a
+    document cannot introduce a class the graph does not model. Ambiguous labels
+    are refused for a person to settle rather than resolved by guessing, which
+    is the moment a silent choice would become a wrong graph that still cites
+    its source.
+    """
+    try:
+        store = registry.get(request.backend)
+    except UnknownBackendError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    writer = getattr(store, "commit", None)
+    if writer is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"The {store.name} backend cannot be written to: it serves a bundled graph "
+                "rather than a database. Choose a backend that can."
+            ),
+        )
+
+    proposals = [review_queue.get(identifier) for identifier in request.proposal_ids]
+    found = [proposal for proposal in proposals if proposal is not None]
+    missing = [
+        CommitRefusal(proposal_id=identifier, reason="No such proposal.")
+        for identifier, proposal in zip(request.proposal_ids, proposals, strict=True)
+        if proposal is None
+    ]
+
+    domain = domains.get(settings.default_domain)
+    extractor = extraction_registry.build(settings, domain)
+    planned = extraction_commit.plan(found, domain, extractor=extractor.name)
+
+    try:
+        written, refused = await writer(planned.planned)
+    except Exception as error:  # noqa: BLE001 - the store's own complaint is the useful part
+        logger.info("Commit failed: %s", error)
+        raise HTTPException(status_code=400, detail=_readable_failure(error)) from error
+
+    return CommitResult(
+        written=[CommittedStatement(**entry) for entry in written],
+        refused=missing
+        + [CommitRefusal(proposal_id=r.proposal_id, reason=r.reason) for r in planned.refused]
+        + [CommitRefusal(**entry) for entry in refused],
+    )
 
 
 @app.post("/api/graph/query", response_model=GraphQueryResult)

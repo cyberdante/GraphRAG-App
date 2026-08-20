@@ -173,6 +173,41 @@ class ProposalDecision(BaseModel):
     note: str | None = None
 
 
+class CommitRequest(BaseModel):
+    """Which accepted proposals to write, and where.
+
+    Proposal ids, never a query. The console goes to lengths to stay read-only,
+    and a write endpoint taking a string would hand all of that back.
+    """
+
+    proposal_ids: list[str]
+    backend: str | None = None
+
+
+class CommittedStatement(BaseModel):
+    proposal_id: str
+    subject_id: str
+    object_id: str
+    #: Nodes this commit brought into existence, as opposed to matched. The
+    #: number a reviewer most wants after pressing the button: creating five
+    #: nodes where you expected to match five is a resolution problem, and it is
+    #: invisible unless it is counted.
+    created_nodes: list[str]
+
+
+class CommitRefusal(BaseModel):
+    proposal_id: str
+    reason: str
+
+
+class CommitResult(BaseModel):
+    written: list[CommittedStatement]
+    #: What was not written and why. A refusal is an outcome, not an error: an
+    #: ambiguous label is a question for a person, and the rest of the batch
+    #: should still land.
+    refused: list[CommitRefusal]
+
+
 class DomainInfo(BaseModel):
     """One subject this deployment can hold a graph about."""
 

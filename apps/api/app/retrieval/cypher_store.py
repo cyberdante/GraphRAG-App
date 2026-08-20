@@ -15,10 +15,11 @@ Connection details come from settings, never from a request — see the note in
 `store.py`.
 """
 
+import hashlib
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from . import passes, query_guard, scoring
@@ -28,9 +29,16 @@ from .schema import MAX_SHAPES, GraphSchema, SchemaEdge
 
 logger = logging.getLogger(__name__)
 
-#: Relationship types are interpolated into Cypher, because the language has no
-#: parameter slot for them. Everything reaching that interpolation is checked
-#: against this first.
+#: Labels and relationship types are interpolated into Cypher on the write path,
+#: because the language has no parameter slot for either. Everything reaching
+#: that interpolation is checked against this first — and, before that, against
+#: the domain's declared vocabulary in `extraction/commit.py`, so a term has to
+#: be both declared and syntactically an identifier.
+#:
+#: The read path interpolates nothing from data: its queries are module
+#: constants and every value they use is bound. This constant sat here unused
+#: for a while, next to a comment claiming a check that nothing performed, which
+#: is worse than no comment — a reader assumes the protection is there.
 SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -260,6 +268,119 @@ class CypherGraphStore:
 
         return columns, rows
 
+    async def commit(
+        self, statements: list[Any], committed_at: datetime | None = None
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+        """Writes accepted statements, resolving their endpoints by label.
+
+        The only write path in the service, and deliberately the narrowest thing
+        that works: it takes typed statements the planner has already checked,
+        never a query, so the read-only guarantees the console is built on are
+        not quietly handed back by a second door.
+
+        Resolution refuses rather than guesses. A label matching two existing
+        nodes of the right class is the moment a silent choice becomes a wrong
+        graph that still cites its source, so it comes back as a refusal for a
+        person to settle. A label matching none creates a node — that is the
+        point of ingestion — and the new node is marked with the document it
+        came from.
+
+        Writing is idempotent. Both the nodes and the statement are MERGEd, so
+        committing the same proposal twice leaves one of each rather than
+        building a duplicate every time somebody presses the button again.
+        """
+        written: list[dict[str, Any]] = []
+        refused: list[dict[str, str]] = []
+        stamp = committed_at or datetime.now(UTC)
+
+        async with self._driver.session(database=self._database) as session:
+            for statement in statements:
+                # Checked once more at the boundary that does the interpolating.
+                # The planner has already done this; a write path should not
+                # depend on a caller having been careful.
+                terms = (statement.subject_type, statement.object_type, statement.predicate)
+                if not all(SAFE_IDENTIFIER.match(term) for term in terms):
+                    refused.append(
+                        {"proposal_id": statement.proposal_id, "reason": "Unsafe identifier."}
+                    )
+                    continue
+
+                subject = await self._resolve(session, statement.subject, statement.subject_type)
+                obj = await self._resolve(session, statement.object, statement.object_type)
+
+                ambiguous = [
+                    (label, found)
+                    for label, found in (
+                        (statement.subject, subject),
+                        (statement.object, obj),
+                    )
+                    if found is None
+                ]
+                if ambiguous:
+                    refused.append(
+                        {
+                            "proposal_id": statement.proposal_id,
+                            "reason": (
+                                f"{ambiguous[0][0]!r} matches more than one node. "
+                                "Say which one it is; this will not choose."
+                            ),
+                        }
+                    )
+                    continue
+
+                result = await session.run(
+                    _COMMIT_STATEMENT.format(
+                        subject_label=statement.subject_type,
+                        object_label=statement.object_type,
+                        predicate=statement.predicate,
+                    ),
+                    {
+                        "subject_id": subject["id"],
+                        "subject_name": statement.subject,
+                        "object_id": obj["id"],
+                        "object_name": statement.object,
+                        "source": statement.source,
+                        "extractor": statement.extractor,
+                        "confidence": statement.confidence,
+                        "committed_at": stamp,
+                    },
+                )
+                record = await result.single()
+                written.append(
+                    {
+                        "proposal_id": statement.proposal_id,
+                        "subject_id": subject["id"],
+                        "object_id": obj["id"],
+                        "created_nodes": [
+                            found["id"] for found in (subject, obj) if found["created"]
+                        ],
+                        "statement": record["statement"] if record else None,
+                    }
+                )
+
+        return written, refused
+
+    async def _resolve(self, session, label: str, node_type: str) -> dict[str, Any] | None:
+        """Finds the node this label means, or makes one. None means ambiguous.
+
+        Matched case-insensitively on the exact label within the expected class.
+        Not fuzzily: "Acme Ltd" and "ACME Limited" are the same company to a
+        person and two strings here, and a matcher confident enough to join them
+        is confident enough to join two that should not be.
+        """
+        result = await session.run(_FIND_BY_LABEL.format(label=node_type), {"name": label})
+        rows = [record.data() async for record in result]
+
+        if len(rows) > 1:
+            return None
+        if rows:
+            return {"id": rows[0]["id"], "created": False}
+
+        # New to the graph. The id says where it came from, which is the one
+        # thing a reader of a generated id most wants to know.
+        node_id = f"ext_{hashlib.sha256(f'{node_type}|{label}'.encode()).hexdigest()[:12]}"
+        return {"id": node_id, "created": True}
+
     async def _run(
         self,
         session,
@@ -464,6 +585,37 @@ _BY_ID = f"""
     WHERE {_TYPE_FILTER}
       AND (subject.id IN $ids OR object.id IN $ids)
     {_PROJECTION}
+"""
+
+
+#: Finds a node of a known class by its label, case-insensitively.
+#:
+#: The class is interpolated because Cypher cannot bind a label; the label being
+#: searched for is bound, because it comes from a document.
+_FIND_BY_LABEL = """
+    MATCH (n:{label})
+    WHERE toLower(n.label) = toLower($name)
+    RETURN n.id AS id
+"""
+
+#: Writes one statement, creating either endpoint if it is new.
+#:
+#: MERGE throughout, so pressing commit twice leaves one statement rather than a
+#: second copy. The provenance goes on the relationship: which document said so,
+#: what read it, how sure it was, and when a person let it in. `ON CREATE` for
+#: the node's own fields so a re-commit cannot overwrite a label somebody has
+#: since corrected in the graph.
+_COMMIT_STATEMENT = """
+    MERGE (subject:{subject_label} {{id: $subject_id}})
+      ON CREATE SET subject.label = $subject_name, subject.source = $source
+    MERGE (object:{object_label} {{id: $object_id}})
+      ON CREATE SET object.label = $object_name, object.source = $source
+    MERGE (subject)-[relation:{predicate}]->(object)
+      ON CREATE SET relation.source = $source,
+                    relation.extractor = $extractor,
+                    relation.confidence = $confidence,
+                    relation.extracted_at = $committed_at
+    RETURN subject.id + ' ' + type(relation) + ' ' + object.id AS statement
 """
 
 
